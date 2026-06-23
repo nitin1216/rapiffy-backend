@@ -1,10 +1,15 @@
 package com.example.rapiffy.common;
 
+import jakarta.persistence.Embeddable;
+import lombok.Data;
+
+@Embeddable
+@Data
 public class CName {
 
-    String prefix;
-    String firstName;
-    String middleName;
-    String lastName;
-    String suffix;
+    private String prefix;
+    private String firstName;
+    private String middleName;
+    private String lastName;
+    private String suffix;
 }

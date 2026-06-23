@@ -2,15 +2,29 @@ package com.example.rapiffy.model;
 
 import com.example.rapiffy.common.CAddress;
 import com.example.rapiffy.common.CName;
+import com.example.rapiffy.common.CPhone;
+import jakarta.persistence.*;
+import lombok.Data;
 
-import java.math.BigInteger;
-
+@Entity
+@Table(name = "profiles")
+@Data
 public class profiles {
 
-    BigInteger id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    BigInteger user_id;
+    @OneToOne
+    @JoinColumn(name = "user_id", nullable = false, unique = true)
+    private User user;
 
-    CName fullName;
-    CAddress address;
+    @Embedded
+    private CName fullName;
+
+    @Embedded
+    private CAddress address;
+
+    @Embedded
+    private CPhone phoneNumber;
 }

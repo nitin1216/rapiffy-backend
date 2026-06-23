@@ -1,21 +1,33 @@
 package com.example.rapiffy.controller;
 
+import com.example.rapiffy.dto.LoginRequest;
+import com.example.rapiffy.dto.LoginResponse;
+import com.example.rapiffy.dto.SignUpRequest;
+import com.example.rapiffy.dto.SignUpResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-@RequestMapping("v1/login")
+@Tag(name = "Auth", description = "Signup and Login APIs")
+@RequestMapping("v1/auth")
 public interface LoginSignUpController {
 
-    @GetMapping("/login")
-    public ResponseEntity<?> loginByAdmin(String phoneNumber);
+    @Operation(summary = "Login with phone number and password")
+    @PostMapping("/login")
+    ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request);
 
-    @GetMapping("/admin-sign-up")
-    public ResponseEntity<?> signByAdmin(String phoneNumber);
+    @Operation(summary = "Admin signup with phone number and password")
+    @PostMapping("/admin-sign-up")
+    ResponseEntity<SignUpResponse> signUpAdmin(@RequestBody SignUpRequest request);
 
-    @GetMapping("/customer-sign-up")
-    public ResponseEntity<?> signByCustomer(String phoneNumber);
+    @Operation(summary = "Customer signup with phone number and password")
+    @PostMapping("/customer-sign-up")
+    ResponseEntity<SignUpResponse> signUpCustomer(@RequestBody SignUpRequest request);
 
-    @GetMapping("/deli-sign-up")
-    public ResponseEntity<?> signByDelivery(String phoneNumber);
+    @Operation(summary = "Delivery person signup with phone number and password")
+    @PostMapping("/deli-sign-up")
+    ResponseEntity<SignUpResponse> signUpDelivery(@RequestBody SignUpRequest request);
 }
