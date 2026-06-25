@@ -26,5 +26,9 @@ public class profiles {
     private CAddress address;
 
     @Embedded
+    @AttributeOverrides({
+        @AttributeOverride(name = "dialCode",    column = @Column(name = "profile_dial_code")),
+        @AttributeOverride(name = "phoneNumber", column = @Column(name = "profile_phone_number"))
+    })
     private CPhone phoneNumber;
 }
