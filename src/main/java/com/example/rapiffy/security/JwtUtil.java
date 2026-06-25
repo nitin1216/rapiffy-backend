@@ -22,10 +22,10 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    // Generate a JWT token for a given phone number and role
-    public String generateToken(String phoneNumber, String role) {
+    // Generate a JWT token for a given identifier (phone or email) and role
+    public String generateToken(String identifier, String role) {
         return Jwts.builder()
-                .subject(phoneNumber)
+                .subject(identifier)
                 .claim("role", role)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expirationMs))
@@ -33,8 +33,8 @@ public class JwtUtil {
                 .compact();
     }
 
-    // Extract phone number (subject) from token
-    public String extractPhoneNumber(String token) {
+    // Extract identifier (phone number or email) from token subject
+    public String extractIdentifier(String token) {
         return Jwts.parser()
                 .verifyWith(getSigningKey())
                 .build()

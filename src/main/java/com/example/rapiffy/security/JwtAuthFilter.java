@@ -46,14 +46,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 5. Extract phone number and role from token
-        String phoneNumber = jwtUtil.extractPhoneNumber(token);
+        // 5. Extract identifier (phone or email) and role from token
+        String identifier = jwtUtil.extractIdentifier(token);
         String role = jwtUtil.extractRole(token);
 
         // 6. Set authentication in Spring Security context
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(
-                        phoneNumber,
+                        identifier,
                         null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + role))
                 );

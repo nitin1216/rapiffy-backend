@@ -1,5 +1,6 @@
 package com.example.rapiffy.controller;
 
+import com.example.rapiffy.dto.GoogleAuthRequest;
 import com.example.rapiffy.dto.LoginRequest;
 import com.example.rapiffy.dto.LoginResponse;
 import com.example.rapiffy.dto.SignUpRequest;
@@ -18,6 +19,10 @@ public interface LoginSignUpController {
     @Operation(summary = "Login with phone number and password")
     @PostMapping("/login")
     ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request);
+
+    @Operation(summary = "Login or register with Google ID token")
+    @PostMapping("/google")
+    ResponseEntity<LoginResponse> googleLogin(@RequestBody GoogleAuthRequest request);
 
     @Operation(summary = "Admin signup with phone number and password")
     @PostMapping("/admin-sign-up")

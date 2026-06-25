@@ -31,7 +31,7 @@ public class SecurityConfig {
 
             // Define which routes are open vs protected
             .authorizeHttpRequests(auth -> auth
-                // Open: signup and login
+                // Open: signup and login (including Google)
                 .requestMatchers("/v1/auth/**").permitAll()
                 // Open: Swagger UI
                 .requestMatchers(
