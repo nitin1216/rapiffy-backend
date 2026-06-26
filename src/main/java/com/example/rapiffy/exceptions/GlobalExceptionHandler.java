@@ -1,5 +1,6 @@
-package com.example.rapiffy.common;
+package com.example.rapiffy.exceptions;
 
+import com.example.rapiffy.dto.ApiErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;

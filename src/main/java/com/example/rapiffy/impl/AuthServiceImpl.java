@@ -1,11 +1,10 @@
 package com.example.rapiffy.impl;
 
-import com.example.rapiffy.common.ApiException;
+import com.example.rapiffy.exceptions.ApiException;
 import com.example.rapiffy.dto.LoginRequest;
 import com.example.rapiffy.dto.LoginResponse;
 import com.example.rapiffy.dto.SignUpRequest;
 import com.example.rapiffy.dto.SignUpResponse;
-import com.example.rapiffy.enums.AuthProvider;
 import com.example.rapiffy.model.User;
 import com.example.rapiffy.model.profiles;
 import com.example.rapiffy.repos.ProfileRepository;

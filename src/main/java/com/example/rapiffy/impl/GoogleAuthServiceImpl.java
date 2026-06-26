@@ -1,6 +1,6 @@
 package com.example.rapiffy.impl;
 
-import com.example.rapiffy.common.ApiException;
+import com.example.rapiffy.exceptions.ApiException;
 import com.example.rapiffy.dto.GoogleAuthRequest;
 import com.example.rapiffy.dto.LoginResponse;
 import com.example.rapiffy.enums.AuthProvider;
@@ -20,7 +20,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
-import java.util.Optional;
 
 @Service
 public class GoogleAuthServiceImpl implements GoogleAuthService {

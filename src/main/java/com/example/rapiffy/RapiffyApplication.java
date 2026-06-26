@@ -3,6 +3,7 @@ package com.example.rapiffy;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+/* Owner -- Nitin Pandey */
 @SpringBootApplication
 public class RapiffyApplication {
 

@@ -1,4 +1,4 @@
-package com.example.rapiffy.common;
+package com.example.rapiffy.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

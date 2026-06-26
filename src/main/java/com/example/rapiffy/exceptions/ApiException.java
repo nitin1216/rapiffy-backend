@@ -1,4 +1,4 @@
-package com.example.rapiffy.common;
+package com.example.rapiffy.exceptions;
 
 import org.springframework.http.HttpStatus;
 
