@@ -3,11 +3,15 @@ package com.example.rapiffy.enums;
 public enum AuthProvider {
     FACEBOOK("Facebook"),
     GOOGLE("Google"),
-    NORMAL("Number or email");
+    NORMAL("Number/E-mail");
 
-    private final String message;
+    private final String displayName;
 
     AuthProvider(String message) {
-        this.message = message;
+        this.displayName = message;
+    }
+
+    public String getDisplayName() {
+        return displayName;
     }
 }

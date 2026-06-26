@@ -5,9 +5,13 @@ public enum Roles {
     CUSTOMER("Customer"),
     DELIVERY("Delivery Person");
 
-    private final String message;
+    private final String displayName;
 
     Roles(String message) {
-        this.message = message;
+        this.displayName = message;
+    }
+
+    public String getDisplayName() {
+        return displayName;
     }
 }
