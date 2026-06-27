@@ -25,36 +25,45 @@ public class LoginSignUpControllerImpl implements LoginSignUpController {
         this.googleAuthService = googleAuthService;
     }
 
-    @Override
-    public ResponseEntity<LoginResponse> login(LoginRequest request) {
-        LoginResponse response = authService.login(request);
-        return ResponseEntity.ok(response);
-    }
+    // ── Normal (phone + password) ─────────────────────────────────────────────
 
     @Override
-    public ResponseEntity<LoginResponse> googleLogin(GoogleAuthRequest request) {
-        LoginResponse response = googleAuthService.googleLogin(request);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<LoginResponse> login(LoginRequest request) {
+        return ResponseEntity.ok(authService.login(request));
     }
 
     @Override
     public ResponseEntity<SignUpResponse> signUpAdmin(SignUpRequest request) {
         request.setRole(Roles.ADMIN);
-        SignUpResponse response = authService.signUp(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.signUp(request));
     }
 
     @Override
     public ResponseEntity<SignUpResponse> signUpCustomer(SignUpRequest request) {
         request.setRole(Roles.CUSTOMER);
-        SignUpResponse response = authService.signUp(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.signUp(request));
     }
 
     @Override
     public ResponseEntity<SignUpResponse> signUpDelivery(SignUpRequest request) {
         request.setRole(Roles.DELIVERY);
-        SignUpResponse response = authService.signUp(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.signUp(request));
+    }
+
+    // ── Google OAuth ──────────────────────────────────────────────────────────
+
+    @Override
+    public ResponseEntity<LoginResponse> googleLoginAdmin(GoogleAuthRequest request) {
+        return ResponseEntity.ok(googleAuthService.googleLogin(request, Roles.ADMIN));
+    }
+
+    @Override
+    public ResponseEntity<LoginResponse> googleLoginCustomer(GoogleAuthRequest request) {
+        return ResponseEntity.ok(googleAuthService.googleLogin(request, Roles.CUSTOMER));
+    }
+
+    @Override
+    public ResponseEntity<LoginResponse> googleLoginDelivery(GoogleAuthRequest request) {
+        return ResponseEntity.ok(googleAuthService.googleLogin(request, Roles.DELIVERY));
     }
 }

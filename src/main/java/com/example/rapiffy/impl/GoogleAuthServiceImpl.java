@@ -40,13 +40,13 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
     }
 
     @Override
-    public LoginResponse googleLogin(GoogleAuthRequest request) {
+    public LoginResponse googleLogin(GoogleAuthRequest request, Roles role) {
 
         // 1. Verify the ID token with Google
         GoogleIdToken.Payload payload = verifyToken(request.getIdToken());
 
         // 2. Extract user info from the verified token
-        String googleSub = payload.getSubject();         // unique Google user ID
+        String googleSub = payload.getSubject();
         String email     = payload.getEmail();
         boolean verified = payload.getEmailVerified();
         String picture   = (String) payload.get("picture");
@@ -61,15 +61,14 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
                 .orElse(null);
 
         if (user == null) {
-            // 4a. New user — create account automatically (role: CUSTOMER by default)
+            // 4a. New user — create with the role from the endpoint they hit
             user = new User();
             user.setEmail(email);
             user.setGoogleSub(googleSub);
             user.setEmailVerified(true);
             user.setPicture(picture);
             user.setAuthProvider(AuthProvider.GOOGLE);
-            user.setRole(Roles.CUSTOMER);
-            // No phone, no password for Google users
+            user.setRole(role); // role set by whichever endpoint was called
 
             User savedUser = userRepository.save(user);
 
@@ -80,12 +79,18 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
 
             user = savedUser;
         } else {
-            // 4b. Existing user — update Google fields in case they changed
+            // 4b. Existing user — verify they belong to the same role as the endpoint
+            if (user.getRole() != role) {
+                throw new ApiException(
+                    "Account exists with a different role. Please use the correct login.",
+                    HttpStatus.FORBIDDEN
+                );
+            }
+            // Update Google fields in case they changed
             user.setGoogleSub(googleSub);
             user.setEmailVerified(true);
             user.setPicture(picture);
             if (user.getAuthProvider() != AuthProvider.GOOGLE) {
-                // Was a phone user who now signs in with Google on the same email
                 user.setAuthProvider(AuthProvider.GOOGLE);
             }
             userRepository.save(user);

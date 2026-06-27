@@ -16,13 +16,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @RequestMapping("v1/auth")
 public interface LoginSignUpController {
 
+    // ── Normal (phone + password) ─────────────────────────────────────────────
+
     @Operation(summary = "Login with phone number and password")
     @PostMapping("/login")
     ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request);
-
-    @Operation(summary = "Login or register with Google ID token")
-    @PostMapping("/google")
-    ResponseEntity<LoginResponse> googleLogin(@RequestBody GoogleAuthRequest request);
 
     @Operation(summary = "Admin signup with phone number and password")
     @PostMapping("/admin-sign-up")
@@ -35,4 +33,27 @@ public interface LoginSignUpController {
     @Operation(summary = "Delivery person signup with phone number and password")
     @PostMapping("/deli-sign-up")
     ResponseEntity<SignUpResponse> signUpDelivery(@RequestBody SignUpRequest request);
+
+    // ── Google OAuth ──────────────────────────────────────────────────────────
+
+    @Operation(
+        summary = "Admin — login or register with Google",
+        description = "New Google user → created as ADMIN. Existing user → logs in with their current role."
+    )
+    @PostMapping("/google/admin")
+    ResponseEntity<LoginResponse> googleLoginAdmin(@RequestBody GoogleAuthRequest request);
+
+    @Operation(
+        summary = "Customer — login or register with Google",
+        description = "New Google user → created as CUSTOMER. Existing user → logs in with their current role."
+    )
+    @PostMapping("/google/customer")
+    ResponseEntity<LoginResponse> googleLoginCustomer(@RequestBody GoogleAuthRequest request);
+
+    @Operation(
+        summary = "Delivery person — login or register with Google",
+        description = "New Google user → created as DELIVERY. Existing user → logs in with their current role."
+    )
+    @PostMapping("/google/delivery")
+    ResponseEntity<LoginResponse> googleLoginDelivery(@RequestBody GoogleAuthRequest request);
 }

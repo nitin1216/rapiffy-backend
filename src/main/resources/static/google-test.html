@@ -71,11 +71,18 @@
   <h2>🔐 Google Login Token Tester</h2>
   <p style="color:#666;">Use this page to get a Google <code>idToken</code> and test the <code>POST /v1/auth/google</code> API in Swagger.</p>
 
-  <div class="step"><b>Step 1:</b> Click the Google Sign-In button below and log in with your Google account.</div>
-  <div class="step"><b>Step 2:</b> Copy the <code>idToken</code> that appears.</div>
-  <div class="step"><b>Step 3:</b> Open Swagger → <code>POST /v1/auth/google</code> → paste the token in the request body.</div>
+  <div class="step"><b>Step 1:</b> Select the role you want to register/login as.</div>
+  <div class="step"><b>Step 2:</b> Click the Google Sign-In button and log in.</div>
+  <div class="step"><b>Step 3:</b> Copy the Swagger body and paste it into the correct endpoint in Swagger.</div>
 
   <div id="sign-in-section">
+    <label for="roleSelect" style="font-weight:bold;">Select Role:</label>
+    <select id="roleSelect" style="margin-left:10px; padding:6px 12px; border-radius:6px; border:1px solid #ddd; font-size:14px;">
+      <option value="customer">Customer → POST /v1/auth/google/customer</option>
+      <option value="admin">Admin → POST /v1/auth/google/admin</option>
+      <option value="delivery">Delivery → POST /v1/auth/google/delivery</option>
+    </select>
+    <br/><br/>
     <!-- Google Sign-In button rendered here -->
     <div id="g_id_onload"
          data-client_id="1024798297040-als8vjdvkqrrlur3trl2m1t3cbnthmkm.apps.googleusercontent.com"
@@ -94,6 +101,7 @@
 
   <div class="token-box" id="tokenBox">
     <hr/>
+    <p id="endpointLabel" style="font-weight:bold; color:#4285f4;"></p>
     <p><b>✅ Your idToken (copy this):</b></p>
     <textarea id="tokenArea" readonly></textarea>
     <br/>
@@ -119,15 +127,13 @@
 <script>
   function handleCredentialResponse(response) {
     const idToken = response.credential;
+    const role = document.getElementById("roleSelect").value;
+    const endpoint = `/v1/auth/google/${role}`;
 
-    // Show the token box
     document.getElementById("tokenBox").style.display = "block";
     document.getElementById("tokenArea").value = idToken;
-
-    // Pre-fill the Swagger-ready JSON body
+    document.getElementById("endpointLabel").innerText = `Endpoint: POST ${endpoint}`;
     document.getElementById("swaggerBody").value = JSON.stringify({ idToken: idToken }, null, 2);
-
-    // Scroll down to token
     document.getElementById("tokenBox").scrollIntoView({ behavior: "smooth" });
   }
 
