@@ -7,8 +7,8 @@ public enum Roles {
 
     private final String displayName;
 
-    Roles(String message) {
-        this.displayName = message;
+    Roles(String displayName) {
+        this.displayName = displayName;
     }
 
     public String getDisplayName() {

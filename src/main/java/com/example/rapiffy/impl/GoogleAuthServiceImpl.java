@@ -5,8 +5,8 @@ import com.example.rapiffy.dto.GoogleAuthRequest;
 import com.example.rapiffy.dto.LoginResponse;
 import com.example.rapiffy.enums.AuthProvider;
 import com.example.rapiffy.enums.Roles;
-import com.example.rapiffy.model.User;
 import com.example.rapiffy.model.profiles;
+import com.example.rapiffy.model.User;
 import com.example.rapiffy.repos.ProfileRepository;
 import com.example.rapiffy.repos.UserRepository;
 import com.example.rapiffy.security.JwtUtil;
@@ -50,13 +50,12 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
         String email     = payload.getEmail();
         boolean verified = payload.getEmailVerified();
         String picture   = (String) payload.get("picture");
-        String name      = (String) payload.get("name");
 
         if (!verified) {
             throw new ApiException("Google email is not verified", HttpStatus.UNAUTHORIZED);
         }
 
-        // 3. Find existing user by googleSub, or fallback by email (e.g. was a phone user before)
+        // 3. Find existing user by googleSub, or fallback by email
         User user = userRepository.findByGoogleSub(googleSub)
                 .or(() -> userRepository.findByEmail(email))
                 .orElse(null);
@@ -86,19 +85,19 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
             user.setEmailVerified(true);
             user.setPicture(picture);
             if (user.getAuthProvider() != AuthProvider.GOOGLE) {
-                // Was a phone user who now signs in with Google on same email
+                // Was a phone user who now signs in with Google on the same email
                 user.setAuthProvider(AuthProvider.GOOGLE);
             }
             userRepository.save(user);
         }
 
-        // 5. Generate and return your app's JWT (same format as normal login)
+        // 5. Generate and return app JWT
         String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
         return new LoginResponse(token, "Google login successful");
     }
 
     /**
-     * Calls Google's servers to verify the token is genuine and not tampered with.
+     * Calls Google's servers to verify the token is genuine and untampered.
      * Throws ApiException if the token is invalid or expired.
      */
     private GoogleIdToken.Payload verifyToken(String idTokenString) {

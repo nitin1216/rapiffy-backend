@@ -5,8 +5,9 @@ import com.example.rapiffy.dto.LoginRequest;
 import com.example.rapiffy.dto.LoginResponse;
 import com.example.rapiffy.dto.SignUpRequest;
 import com.example.rapiffy.dto.SignUpResponse;
-import com.example.rapiffy.model.User;
+import com.example.rapiffy.enums.AuthProvider;
 import com.example.rapiffy.model.profiles;
+import com.example.rapiffy.model.User;
 import com.example.rapiffy.repos.ProfileRepository;
 import com.example.rapiffy.repos.UserRepository;
 import com.example.rapiffy.security.JwtUtil;
@@ -42,9 +43,9 @@ public class AuthServiceImpl implements AuthService {
         // 2. Build and save User
         User user = new User();
         user.setPhoneNumber(request.getPhoneNumber());
-        user.setPassword(passwordEncoder.encode(request.getPassword())); // hash password
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole(request.getRole());
-//        user.setAuthProvider(AuthProvider.NORMAL);
+        user.setAuthProvider(AuthProvider.NORMAL);
 
         User savedUser = userRepository.save(user);
 

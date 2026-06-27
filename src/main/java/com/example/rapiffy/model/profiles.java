@@ -19,7 +19,7 @@ public class profiles {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
@@ -29,35 +29,36 @@ public class profiles {
     @Embedded
     private CAddress address;
 
-    @Embedded
+    @Column(name = "dob")
     private LocalDate dob;
 
-    @Embedded
+    @Column(name = "pan", length = 10)
     private String pan;
 
-    @Embedded
+    @Column(name = "aadhaar", length = 12)
     private String aadhaar;
 
-    @Embedded
-    private String servingRangeInKm; // coverage range (KM) to deliver the product.
+    @Column(name = "serving_range_km")
+    private String servingRangeInKm; // coverage range (km) to deliver the product
 
     @Embedded
     private CBank bankDetails;
 
-    @Embedded
+    @Column(name = "gst_number", length = 15)
     private String gstNumber;
 
-    @Embedded
+    @Column(name = "subscription_start_date")
     private LocalDate subscriptionStartDate;
 
-    @Embedded
+    @Column(name = "subscription_end_date")
     private LocalDate subscriptionEndDate;
 
-    @Embedded
-    private SubscriptionStatus status;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "subscription_status")
+    private SubscriptionStatus subscriptionStatus;
 
-    @Embedded
-    private Long noOfDeliveryPerson;
+    @Column(name = "no_of_delivery_persons")
+    private Long noOfDeliveryPersons;
 
     @Embedded
     @AttributeOverrides({

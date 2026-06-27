@@ -3,8 +3,6 @@ package com.example.rapiffy.model;
 import jakarta.persistence.*;
 import lombok.Data;
 
-import java.awt.image.BufferedImage;
-
 @Entity
 @Table(name = "products")
 @Data
@@ -16,25 +14,29 @@ public class Product {
 
     @Column(name = "product_code", unique = true, nullable = false)
     private String productCode;
-    @ManyToOne
-    @JoinColumn(name = "categoryCode")
-    private Long categoryCode; // category code --> foreign key of category code
 
-    @Embedded
+    // Many products belong to one category
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", nullable = false)
+    private Category category;
+
+    @Column(name = "product_name", nullable = false)
     private String productName;
 
-    @Embedded
-    private BufferedImage productImage; // JPG, PNG
+    // Store image as binary (JPG/PNG). Use @Lob for large binary data.
+    @Lob
+    @Column(name = "product_image")
+    private byte[] productImage;
 
-    @Embedded
-    private int size; // KG, ML, CM
+    @Column(name = "size")
+    private String size; // e.g. "1 KG", "500 ML", "30 CM"
 
-    @Embedded
+    @Column(name = "price", nullable = false)
     private double price;
 
-    @Embedded
+    @Column(name = "rating")
     private int rating;
 
-    @Embedded
+    @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 }

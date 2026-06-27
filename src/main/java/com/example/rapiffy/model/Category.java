@@ -4,8 +4,6 @@ import com.example.rapiffy.enums.CategoryStatus;
 import jakarta.persistence.*;
 import lombok.Data;
 
-import java.awt.image.BufferedImage;
-
 @Entity
 @Table(name = "categories")
 @Data
@@ -18,12 +16,15 @@ public class Category {
     @Column(name = "category_code", unique = true, nullable = false)
     private String categoryCode;
 
-    @Embedded
+    @Column(name = "category_name", nullable = false)
     private String categoryName;
 
-    @Embedded
-    private CategoryStatus status;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category_type", nullable = false)
+    private CategoryStatus categoryType;
 
-    @Embedded
-    private BufferedImage categoryImage; // JPG, PNG
+    // Store image as binary (JPG/PNG). Use @Lob for large binary data.
+    @Lob
+    @Column(name = "category_image")
+    private byte[] categoryImage;
 }

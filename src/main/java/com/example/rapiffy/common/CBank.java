@@ -1,22 +1,17 @@
 package com.example.rapiffy.common;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Embeddable;
+import lombok.Data;
 
+@Embeddable
+@Data
 public class CBank {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @Embedded
     private String nameOnCard;
 
-    @Embedded
-    private String merchantType; // retails, eCommerce, Wholesale
+    private String merchantType; // retail, eCommerce, wholesale
 
-    @Embedded
     private String bankAccountNumber;
 
-    @Embedded
     private String ifsc;
 }

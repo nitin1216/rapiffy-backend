@@ -22,12 +22,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ex.getStatus()).body(error);
     }
 
-    // Handle any unexpected exception → return 500
+    // Handle any unexpected exception → return 500 with actual cause (dev mode)
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGenericException(Exception ex) {
+        // Log the full stack trace so we can see the real error in console
+        ex.printStackTrace();
         ApiErrorResponse error = new ApiErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "Something went wrong. Please try again.",
+                ex.getClass().getSimpleName() + ": " + ex.getMessage(),
                 LocalDateTime.now()
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);

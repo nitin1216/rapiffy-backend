@@ -28,11 +28,11 @@ public class User {
     @Column(unique = true)
     private String email;
 
-    @Column(name = "phone_number", unique = true)
+    @Column(name = "phone_number", unique = true, nullable = true)
     private String phoneNumber;
 
     // Nullable — Google users have no password
-    @Column
+    @Column(nullable = true)
     private String password;
 
     @Enumerated(EnumType.STRING)

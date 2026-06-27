@@ -39,6 +39,8 @@ public class SecurityConfig {
                     "/swagger-ui/**",
                     "/v3/api-docs/**"
                 ).permitAll()
+                // Open: static files (HTML, CSS, JS in /static folder)
+                .requestMatchers("/**.html", "/**.css", "/**.js").permitAll()
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )
