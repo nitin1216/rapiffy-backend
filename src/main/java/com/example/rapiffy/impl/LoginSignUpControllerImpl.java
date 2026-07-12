@@ -25,16 +25,18 @@ public class LoginSignUpControllerImpl implements LoginSignUpController {
         this.googleAuthService = googleAuthService;
     }
 
-    // ── Normal (phone + password) ─────────────────────────────────────────────
+    // ── Login ─────────────────────────────────────────────────────────────────
 
     @Override
     public ResponseEntity<LoginResponse> login(LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
     }
 
+    // ── Signup ────────────────────────────────────────────────────────────────
+
     @Override
-    public ResponseEntity<SignUpResponse> signUpAdmin(SignUpRequest request) {
-        request.setRole(Roles.ADMIN);
+    public ResponseEntity<SignUpResponse> signUpSuperAdmin(SignUpRequest request) {
+        request.setRole(Roles.SUPER_ADMIN);
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.signUp(request));
     }
 
@@ -51,11 +53,6 @@ public class LoginSignUpControllerImpl implements LoginSignUpController {
     }
 
     // ── Google OAuth ──────────────────────────────────────────────────────────
-
-    @Override
-    public ResponseEntity<LoginResponse> googleLoginAdmin(GoogleAuthRequest request) {
-        return ResponseEntity.ok(googleAuthService.googleLogin(request, Roles.ADMIN));
-    }
 
     @Override
     public ResponseEntity<LoginResponse> googleLoginCustomer(GoogleAuthRequest request) {

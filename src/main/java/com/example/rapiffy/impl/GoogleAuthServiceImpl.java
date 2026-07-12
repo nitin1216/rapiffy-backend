@@ -5,7 +5,7 @@ import com.example.rapiffy.dto.GoogleAuthRequest;
 import com.example.rapiffy.dto.LoginResponse;
 import com.example.rapiffy.enums.AuthProvider;
 import com.example.rapiffy.enums.Roles;
-import com.example.rapiffy.model.profiles;
+import com.example.rapiffy.model.Profile;
 import com.example.rapiffy.model.User;
 import com.example.rapiffy.repos.ProfileRepository;
 import com.example.rapiffy.repos.UserRepository;
@@ -73,7 +73,7 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
             User savedUser = userRepository.save(user);
 
             // Create empty profile linked to user
-            profiles profile = new profiles();
+            Profile profile = new Profile();
             profile.setUser(savedUser);
             profileRepository.save(profile);
 

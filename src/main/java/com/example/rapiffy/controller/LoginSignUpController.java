@@ -16,44 +16,34 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @RequestMapping("v1/auth")
 public interface LoginSignUpController {
 
-    // ── Normal (phone + password) ─────────────────────────────────────────────
+    // ── Login (all roles use same endpoint) ───────────────────────────────────
 
     @Operation(summary = "Login with phone number and password")
     @PostMapping("/login")
     ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request);
 
-    @Operation(summary = "Admin signup with phone number and password")
-    @PostMapping("/admin-sign-up")
-    ResponseEntity<SignUpResponse> signUpAdmin(@RequestBody SignUpRequest request);
+    // ── Signup ────────────────────────────────────────────────────────────────
 
-    @Operation(summary = "Customer signup with phone number and password")
+    @Operation(summary = "Super Admin signup")
+    @PostMapping("/super-admin-sign-up")
+    ResponseEntity<SignUpResponse> signUpSuperAdmin(@RequestBody SignUpRequest request);
+
+    @Operation(summary = "Customer signup")
     @PostMapping("/customer-sign-up")
     ResponseEntity<SignUpResponse> signUpCustomer(@RequestBody SignUpRequest request);
 
-    @Operation(summary = "Delivery person signup with phone number and password")
+    @Operation(summary = "Delivery person signup")
     @PostMapping("/deli-sign-up")
     ResponseEntity<SignUpResponse> signUpDelivery(@RequestBody SignUpRequest request);
 
     // ── Google OAuth ──────────────────────────────────────────────────────────
+    // Note: Admin cannot self-signup. Only SuperAdmin onboards Admin.
 
-    @Operation(
-        summary = "Admin — login or register with Google",
-        description = "New Google user → created as ADMIN. Existing user → logs in with their current role."
-    )
-    @PostMapping("/google/admin")
-    ResponseEntity<LoginResponse> googleLoginAdmin(@RequestBody GoogleAuthRequest request);
-
-    @Operation(
-        summary = "Customer — login or register with Google",
-        description = "New Google user → created as CUSTOMER. Existing user → logs in with their current role."
-    )
+    @Operation(summary = "Customer — login or register with Google")
     @PostMapping("/google/customer")
     ResponseEntity<LoginResponse> googleLoginCustomer(@RequestBody GoogleAuthRequest request);
 
-    @Operation(
-        summary = "Delivery person — login or register with Google",
-        description = "New Google user → created as DELIVERY. Existing user → logs in with their current role."
-    )
+    @Operation(summary = "Delivery person — login or register with Google")
     @PostMapping("/google/delivery")
     ResponseEntity<LoginResponse> googleLoginDelivery(@RequestBody GoogleAuthRequest request);
 }

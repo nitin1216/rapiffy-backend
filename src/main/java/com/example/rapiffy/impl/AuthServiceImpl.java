@@ -6,7 +6,7 @@ import com.example.rapiffy.dto.LoginResponse;
 import com.example.rapiffy.dto.SignUpRequest;
 import com.example.rapiffy.dto.SignUpResponse;
 import com.example.rapiffy.enums.AuthProvider;
-import com.example.rapiffy.model.profiles;
+import com.example.rapiffy.model.Profile;
 import com.example.rapiffy.model.User;
 import com.example.rapiffy.repos.ProfileRepository;
 import com.example.rapiffy.repos.UserRepository;
@@ -50,7 +50,7 @@ public class AuthServiceImpl implements AuthService {
         User savedUser = userRepository.save(user);
 
         // 3. Create empty Profile linked to user
-        profiles profile = new profiles();
+        Profile profile = new Profile();
         profile.setUser(savedUser);
         profileRepository.save(profile);
 
