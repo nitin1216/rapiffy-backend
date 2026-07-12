@@ -2,6 +2,7 @@ package com.example.rapiffy.enums;
 
 public enum Roles {
     ADMIN("ShopKeeper"),
+    SUPER_ADMIN("Super Admin"),
     CUSTOMER("Customer"),
     DELIVERY("Delivery Person");
 

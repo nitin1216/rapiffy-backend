@@ -41,6 +41,10 @@ public class SecurityConfig {
                 ).permitAll()
                 // Open: static files (HTML, CSS, JS in /static folder)
                 .requestMatchers("/**.html", "/**.css", "/**.js").permitAll()
+                // SuperAdmin only
+                .requestMatchers("/v1/super-admin/**").hasRole("SUPER_ADMIN")
+                // Admin (shopkeeper) only
+                .requestMatchers("/v1/admin/**").hasRole("ADMIN")
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )

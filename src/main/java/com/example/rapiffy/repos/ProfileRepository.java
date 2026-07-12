@@ -1,14 +1,13 @@
 package com.example.rapiffy.repos;
 
-import com.example.rapiffy.model.profiles;
+import com.example.rapiffy.model.Profile;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
 @Repository
-public interface ProfileRepository extends JpaRepository<profiles, Long> {
+public interface ProfileRepository extends JpaRepository<Profile, Long> {
 
-    // Used to fetch profile by linked user id
-    Optional<profiles> findByUserId(Long userId);
+    Optional<Profile> findByUserId(Long userId);
 }
