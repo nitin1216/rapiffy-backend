@@ -1,16 +1,16 @@
 package com.example.rapiffy.dto.superadmin;
 
+import com.example.rapiffy.enums.CategoryType;
 import lombok.Data;
 
 /**
  * Request DTO for SuperAdmin to create a new category.
- * Example: Grocery, Medical, Fashion, Dairy, Electronics
+ * categoryType links this DB row to the platform enum.
  */
 @Data
 public class CreateCategoryRequest {
 
-    private String categoryCode;  // e.g. "GRO", "MED", "FSH"
-    private String categoryName;  // e.g. "Grocery", "Medical"
+    private CategoryType categoryType;
     private String imageUrl;
     private String description;
 }

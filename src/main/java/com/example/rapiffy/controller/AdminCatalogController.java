@@ -54,14 +54,17 @@ public interface AdminCatalogController {
         @RequestBody UpdateProductRequest request
     );
 
-    // ── DEACTIVATE PRODUCT (false — stop selling) ────────────────────────────
+    // ── TOGGLE VISIBILITY ────────────────────────────────────────────────────
 
     @Operation(
-        summary = "Deactivate a product",
-        description = "Admin turns OFF a product. It won't be visible to customers anymore."
+        summary = "Toggle product visibility",
+        description = "active=true → product visible to customers. active=false → hidden from customers."
     )
-    @PutMapping("/deactivate/{shopProductId}")
-    ResponseEntity<CatalogActionResponse> deactivateProduct(@PathVariable Long shopProductId);
+    @PatchMapping("/visibility/{shopProductId}")
+    ResponseEntity<CatalogActionResponse> setProductVisibility(
+        @PathVariable Long shopProductId,
+        @RequestParam boolean active
+    );
 
     // ── ADD UNLISTED PRODUCT ─────────────────────────────────────────────────
 
@@ -76,10 +79,14 @@ public interface AdminCatalogController {
     // ── MY PRODUCTS ──────────────────────────────────────────────────────────
 
     @Operation(
-        summary = "Get all shop products",
-        description = "Returns all products in Admin's shop (activated from catalog + unlisted). "
-            + "This is the Admin's inventory view."
+        summary = "Get all shop products grouped by category",
+        description = "Returns Admin's products (activated + unlisted) grouped by category. "
+            + "e.g. Grocery: [product1, product2], Medical: [product3, product4]"
     )
     @GetMapping("/my-products")
-    ResponseEntity<List<ShopProductResponse>> getMyProducts();
+    ResponseEntity<List<CategoryProductsResponse>> getMyProducts();
+
+    @Operation(summary = "Get shop products filtered by category")
+    @GetMapping("/my-products/{categoryId}")
+    ResponseEntity<CategoryProductsResponse> getMyProductsByCategory(@PathVariable Long categoryId);
 }

@@ -15,4 +15,7 @@ public interface MasterProductRepository extends JpaRepository<MasterProduct, Lo
 
     // Check if a product code already exists (used during CSV import to skip duplicates)
     boolean existsByProductCode(String productCode);
+
+    // Get all products for a specific category
+    List<MasterProduct> findByCategory(Category category);
 }

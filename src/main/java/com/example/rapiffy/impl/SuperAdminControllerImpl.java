@@ -1,5 +1,6 @@
 package com.example.rapiffy.impl;
 
+import com.example.rapiffy.dto.admin.AdminProfileResponse;
 import com.example.rapiffy.controller.SuperAdminController;
 import com.example.rapiffy.dto.superadmin.*;
 import com.example.rapiffy.model.Category;
@@ -41,6 +42,16 @@ public class SuperAdminControllerImpl implements SuperAdminController {
     // ── CATALOG ─────────────────────────────────────────────────────────────
 
     @Override
+    public ResponseEntity<SuperAdminActionResponse> addMasterProduct(AddMasterProductRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(superAdminService.addMasterProduct(request));
+    }
+
+    @Override
+    public ResponseEntity<List<MasterProductResponse>> getAllMasterProducts(Long categoryId) {
+        return ResponseEntity.ok(superAdminService.getAllMasterProducts(categoryId));
+    }
+
+    @Override
     public ResponseEntity<CsvImportResponse> importCatalog(Long categoryId, MultipartFile file) {
         return ResponseEntity.ok(superAdminService.importCatalog(categoryId, file));
     }
@@ -50,12 +61,32 @@ public class SuperAdminControllerImpl implements SuperAdminController {
         return ResponseEntity.ok(superAdminService.updateMasterProduct(masterProductId, request));
     }
 
+    @Override
+    public ResponseEntity<SuperAdminActionResponse> addProductToShop(AddProductToShopRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(superAdminService.addProductToShop(request));
+    }
+
     // ── ADMIN ONBOARDING ─────────────────────────────────────────────────────
+
+    @Override
+    public ResponseEntity<List<AdminProfileResponse>> getAllAdmins() {
+        return ResponseEntity.ok(superAdminService.getAllAdmins());
+    }
+
+    @Override
+    public ResponseEntity<AdminProfileResponse> getAdminProfile(String phoneNumber) {
+        return ResponseEntity.ok(superAdminService.getAdminProfile(phoneNumber));
+    }
 
     @Override
     public ResponseEntity<SuperAdminActionResponse> onboardAdmin(OnboardAdminRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(superAdminService.onboardAdmin(request));
+    }
+
+    @Override
+    public ResponseEntity<SuperAdminActionResponse> updateAdminProfile(String phoneNumber, UpdateAdminProfileBySuperAdminRequest request) {
+        return ResponseEntity.ok(superAdminService.updateAdminProfile(phoneNumber, request));
     }
 
     @Override

@@ -19,12 +19,15 @@ public interface AdminCatalogService {
     // Update an existing ShopProduct
     CatalogActionResponse updateProduct(Long userId, Long shopProductId, UpdateProductRequest request);
 
-    // Deactivate a ShopProduct (stop selling)
-    CatalogActionResponse deactivateProduct(Long userId, Long shopProductId);
+    // Deactivate a ShopProduct (stop selling) / reactivate
+    CatalogActionResponse setProductVisibility(Long userId, Long shopProductId, boolean active);
 
     // Add a custom/unlisted product
     CatalogActionResponse addUnlistedProduct(Long userId, AddUnlistedProductRequest request);
 
-    // Get all shop products (activated + unlisted)
-    List<ShopProductResponse> getMyProducts(Long userId);
+    // Get all shop products grouped by category
+    List<CategoryProductsResponse> getMyProducts(Long userId);
+
+    // Get shop products filtered by category
+    CategoryProductsResponse getMyProductsByCategory(Long userId, Long categoryId);
 }

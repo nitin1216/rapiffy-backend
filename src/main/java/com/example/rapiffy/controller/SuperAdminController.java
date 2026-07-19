@@ -1,5 +1,6 @@
 package com.example.rapiffy.controller;
 
+import com.example.rapiffy.dto.admin.AdminProfileResponse;
 import com.example.rapiffy.dto.superadmin.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,6 +38,16 @@ public interface SuperAdminController {
 
     // ── MASTER PRODUCT CATALOG ───────────────────────────────────────────────
 
+    @Operation(summary = "Add a single master product")
+    @PostMapping("/catalog/product")
+    ResponseEntity<SuperAdminActionResponse> addMasterProduct(@RequestBody AddMasterProductRequest request);
+
+    @Operation(summary = "Get all master products", description = "Pass categoryId to filter by category, or omit for all.")
+    @GetMapping("/catalog/products")
+    ResponseEntity<List<MasterProductResponse>> getAllMasterProducts(
+        @RequestParam(required = false) Long categoryId
+    );
+
     @Operation(
         summary = "Import products via CSV into a category",
         description = "CSV columns: productCode, productName, brand, unit, unitValue, mrp, "
@@ -60,7 +71,19 @@ public interface SuperAdminController {
         @RequestBody UpdateMasterProductRequest request
     );
 
+    @Operation(summary = "Add a master product to a specific Admin's shop")
+    @PostMapping("/catalog/add-to-shop")
+    ResponseEntity<SuperAdminActionResponse> addProductToShop(@RequestBody AddProductToShopRequest request);
+
     // ── ADMIN (SHOPKEEPER) MANAGEMENT ────────────────────────────────────────
+
+    @Operation(summary = "Get all onboarded Admins")
+    @GetMapping("/admins")
+    ResponseEntity<List<AdminProfileResponse>> getAllAdmins();
+
+    @Operation(summary = "Get a specific Admin's profile by phone")
+    @GetMapping("/admin/{phoneNumber}")
+    ResponseEntity<AdminProfileResponse> getAdminProfile(@PathVariable String phoneNumber);
 
     @Operation(
         summary = "Onboard a new Admin (shopkeeper)",
@@ -68,6 +91,16 @@ public interface SuperAdminController {
     )
     @PostMapping("/onboard-admin")
     ResponseEntity<SuperAdminActionResponse> onboardAdmin(@RequestBody OnboardAdminRequest request);
+
+    @Operation(
+        summary = "Update Admin (shopkeeper) profile",
+        description = "All fields optional — only non-null fields are updated. Send only what you want to change."
+    )
+    @PutMapping("/admin/{phoneNumber}/profile")
+    ResponseEntity<SuperAdminActionResponse> updateAdminProfile(
+        @PathVariable String phoneNumber,
+        @RequestBody UpdateAdminProfileBySuperAdminRequest request
+    );
 
     @Operation(
         summary = "Remove an Admin (shopkeeper)",

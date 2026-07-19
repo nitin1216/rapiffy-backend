@@ -1,5 +1,6 @@
 package com.example.rapiffy.model;
 
+import com.example.rapiffy.enums.CategoryType;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -22,16 +23,19 @@ public class Category {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Unique code for internal reference (e.g. "GRO", "MED", "FSH")
-    @Column(name = "category_code", unique = true, nullable = false)
-    private String categoryCode;
-
-    // Display name shown to Admin & Customer (e.g. "Grocery", "Medical")
-    @Column(name = "category_name", nullable = false)
-    private String categoryName;
+    // Enum type — used by SUPERADMIN to select categories for an Admin
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category_type", unique = true, nullable = false, length = 50)
+    private CategoryType categoryType;
 
     @Column(name = "image_url")
     private String imageUrl;
+
+    @Transient
+    public String getCategoryName() { return categoryType != null ? categoryType.display() : null; }
+
+    @Transient
+    public String getCategoryCode() { return categoryType != null ? categoryType.name() : null; }
 
     @Column(name = "description")
     private String description;

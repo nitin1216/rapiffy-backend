@@ -1,28 +1,25 @@
-package com.example.rapiffy.dto.admin;
+package com.example.rapiffy.dto.superadmin;
 
+import com.example.rapiffy.enums.CategoryType;
 import lombok.Data;
 
 import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Response DTO for Admin's profile view.
- * Bank details are masked (only last 4 digits visible).
+ * SuperAdmin can update all Admin profile fields including bank details and categories.
+ * All fields are optional — only non-null fields get updated.
  */
 @Data
-public class AdminProfileResponse {
+public class UpdateAdminProfileBySuperAdminRequest {
 
-    private Long profileId;
-
-    // Personal
+    // Personal details
     private String prefix;
     private String firstName;
     private String middleName;
     private String lastName;
     private String suffix;
-
     private String email;
-    private String phoneNumber; // read-only (from User)
     private LocalDate dob;
     private String pan;
     private String aadhaar;
@@ -36,22 +33,19 @@ public class AdminProfileResponse {
     private String latitude;
     private String longitude;
 
-    // Shop
+    // Shop details
     private String shopName;
-    private List<String> shopCategories;
+    private List<CategoryType> categoryTypes;  // SUPERADMIN picks from enum
     private Double servingRangeInKm;
     private String gstNumber;
     private Integer noOfDeliveryPersons;
-    private boolean editUnlistedProducts; // frontend uses this to show/hide the "Add Unlisted" button
 
-    // Bank (masked)
+    // Only SUPERADMIN can toggle this flag
+    private Boolean editUnlistedProducts;
+
+    // Bank details (only SuperAdmin can update)
     private String nameOnCard;
     private String merchantType;
-    private String maskedAccountNumber; // e.g. "xxxxxxxx1234"
-    private String maskedIfsc;          // e.g. "xxxx123"
-
-    // Subscription (read-only)
-    private LocalDate subscriptionStartDate;
-    private LocalDate subscriptionEndDate;
-    private String subscriptionStatus;
+    private String bankAccountNumber;
+    private String ifsc;
 }

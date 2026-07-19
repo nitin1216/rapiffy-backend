@@ -157,18 +157,19 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
         return new CatalogActionResponse(sp.getId(), "Product updated successfully");
     }
 
-    // ── DEACTIVATE PRODUCT ───────────────────────────────────────────────────
+    // ── SET VISIBILITY ───────────────────────────────────────────────────────
 
     @Override
-    public CatalogActionResponse deactivateProduct(Long userId, Long shopProductId) {
+    public CatalogActionResponse setProductVisibility(Long userId, Long shopProductId, boolean active) {
         Profile shop = getShopProfile(userId);
 
         ShopProduct sp = shopProductRepository.findByIdAndShop(shopProductId, shop)
             .orElseThrow(() -> new ApiException("Shop product not found", HttpStatus.NOT_FOUND));
 
-        sp.setActive(false);
+        sp.setActive(active);
         shopProductRepository.save(sp);
-        return new CatalogActionResponse(sp.getId(), "Product deactivated successfully");
+        String msg = active ? "Product is now visible to customers" : "Product is now hidden from customers";
+        return new CatalogActionResponse(sp.getId(), msg);
     }
 
     // ── ADD UNLISTED PRODUCT ─────────────────────────────────────────────────
@@ -176,6 +177,10 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
     @Override
     public CatalogActionResponse addUnlistedProduct(Long userId, AddUnlistedProductRequest request) {
         Profile shop = getShopProfile(userId);
+
+        if (!shop.isEditUnlistedProducts()) {
+            throw new ApiException("Your shop is not allowed to add unlisted products", HttpStatus.FORBIDDEN);
+        }
 
         Category category = categoryRepository.findById(request.getCategoryId())
             .orElseThrow(() -> new ApiException("Category not found", HttpStatus.NOT_FOUND));
@@ -215,6 +220,46 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
 
         ShopProduct saved = shopProductRepository.save(sp);
         return new CatalogActionResponse(saved.getId(), "Unlisted product added successfully");
+    }
+
+    @Override
+    public CategoryProductsResponse getMyProductsByCategory(Long userId, Long categoryId) {
+        Profile shop = getShopProfile(userId);
+        Category category = categoryRepository.findById(categoryId)
+            .orElseThrow(() -> new ApiException("Category not found", HttpStatus.NOT_FOUND));
+
+        boolean belongs = shop.getShopCategories().stream().anyMatch(c -> c.getId().equals(categoryId));
+        if (!belongs)
+            throw new ApiException("Category not assigned to your shop", HttpStatus.FORBIDDEN);
+
+        List<ShopProduct> products = shopProductRepository.findByShopAndCategory(shop, category);
+
+        List<ShopProductResponse> responses = products.stream().map(sp -> {
+            ShopProductResponse r = new ShopProductResponse();
+            r.setShopProductId(sp.getId());
+            r.setMasterProductId(sp.getMasterProduct() != null ? sp.getMasterProduct().getId() : null);
+            r.setProductName(sp.getProductName());
+            r.setBrand(sp.getBrand());
+            r.setUnit(sp.getUnit());
+            r.setUnitValue(sp.getUnitValue());
+            r.setMrp(sp.getMrp());
+            r.setSellingPrice(sp.getSellingPrice());
+            r.setStockQuantity(sp.getStockQuantity());
+            r.setThresholdQuantity(sp.getThresholdQuantity());
+            r.setImageUrl(sp.getImageUrl());
+            r.setShortDescription(sp.getShortDescription());
+            r.setExpiryDate(sp.getExpiryDate());
+            r.setHasVariants(sp.isHasVariants());
+            r.setActive(sp.isActive());
+            r.setUnlisted(sp.getMasterProduct() == null);
+            r.setCategoryName(category.getCategoryName());
+            return r;
+        }).collect(Collectors.toList());
+
+        CategoryProductsResponse result = new CategoryProductsResponse();
+        result.setCategoryName(category.getCategoryName());
+        result.setProducts(responses);
+        return result;
     }
 
     // ── HELPERS ──────────────────────────────────────────────────────────────
@@ -291,11 +336,18 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
     // ── MY PRODUCTS ───────────────────────────────────────────────────────────────
 
     @Override
-    public List<ShopProductResponse> getMyProducts(Long userId) {
+    public List<CategoryProductsResponse> getMyProducts(Long userId) {
         Profile shop = getShopProfile(userId);
         List<ShopProduct> products = shopProductRepository.findByShop(shop);
 
-        return products.stream().map(sp -> {
+        // Group products by category name
+        Map<String, List<ShopProductResponse>> grouped = new LinkedHashMap<>();
+
+        for (ShopProduct sp : products) {
+            String categoryName = sp.getCategory() != null
+                ? sp.getCategory().getCategoryName()
+                : (sp.getMasterProduct() != null ? sp.getMasterProduct().getCategory().getCategoryName() : "Uncategorized");
+
             ShopProductResponse r = new ShopProductResponse();
             r.setShopProductId(sp.getId());
             r.setMasterProductId(sp.getMasterProduct() != null ? sp.getMasterProduct().getId() : null);
@@ -313,9 +365,16 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
             r.setHasVariants(sp.isHasVariants());
             r.setActive(sp.isActive());
             r.setUnlisted(sp.getMasterProduct() == null);
-            r.setCategoryName(sp.getCategory() != null ? sp.getCategory().getCategoryName() : 
-                (sp.getMasterProduct() != null ? sp.getMasterProduct().getCategory().getCategoryName() : null));
-            return r;
+            r.setCategoryName(categoryName);
+
+            grouped.computeIfAbsent(categoryName, k -> new ArrayList<>()).add(r);
+        }
+
+        return grouped.entrySet().stream().map(entry -> {
+            CategoryProductsResponse cat = new CategoryProductsResponse();
+            cat.setCategoryName(entry.getKey());
+            cat.setProducts(entry.getValue());
+            return cat;
         }).collect(Collectors.toList());
     }
 }

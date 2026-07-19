@@ -125,6 +125,7 @@ public class AdminProfileServiceImpl implements AdminProfileService {
         r.setServingRangeInKm(profile.getServingRangeInKm());
         r.setGstNumber(profile.getGstNumber());
         r.setNoOfDeliveryPersons(profile.getNoOfDeliveryPersons());
+        r.setEditUnlistedProducts(profile.isEditUnlistedProducts());
 
         // Bank (masked)
         CBank bank = profile.getBankDetails();

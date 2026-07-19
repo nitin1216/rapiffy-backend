@@ -66,7 +66,6 @@ public class MasterProduct {
     @Column(name = "long_description", columnDefinition = "TEXT")
     private String longDescription;
 
-
     // Does this product have multiple variants? (default: false)
     // SuperAdmin sets this when product has multiple sizes/brands/types
     @Column(name = "has_variants", nullable = false)

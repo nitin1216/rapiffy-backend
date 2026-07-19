@@ -45,9 +45,9 @@ public class AdminCatalogControllerImpl implements AdminCatalogController {
     }
 
     @Override
-    public ResponseEntity<CatalogActionResponse> deactivateProduct(Long shopProductId) {
+    public ResponseEntity<CatalogActionResponse> setProductVisibility(Long shopProductId, boolean active) {
         Long userId = getCurrentUserId();
-        return ResponseEntity.ok(catalogService.deactivateProduct(userId, shopProductId));
+        return ResponseEntity.ok(catalogService.setProductVisibility(userId, shopProductId, active));
     }
 
     @Override
@@ -58,9 +58,15 @@ public class AdminCatalogControllerImpl implements AdminCatalogController {
     }
 
     @Override
-    public ResponseEntity<List<ShopProductResponse>> getMyProducts() {
+    public ResponseEntity<List<CategoryProductsResponse>> getMyProducts() {
         Long userId = getCurrentUserId();
         return ResponseEntity.ok(catalogService.getMyProducts(userId));
+    }
+
+    @Override
+    public ResponseEntity<CategoryProductsResponse> getMyProductsByCategory(Long categoryId) {
+        Long userId = getCurrentUserId();
+        return ResponseEntity.ok(catalogService.getMyProductsByCategory(userId, categoryId));
     }
 
     // ── HELPER: Extract current logged-in user's ID from JWT/SecurityContext ─

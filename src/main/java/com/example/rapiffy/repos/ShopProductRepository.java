@@ -1,5 +1,6 @@
 package com.example.rapiffy.repos;
 
+import com.example.rapiffy.model.Category;
 import com.example.rapiffy.model.MasterProduct;
 import com.example.rapiffy.model.Profile;
 import com.example.rapiffy.model.ShopProduct;
@@ -20,4 +21,6 @@ public interface ShopProductRepository extends JpaRepository<ShopProduct, Long> 
 
     // Find a shop product by id and shop (ensures Admin can only access their own products)
     Optional<ShopProduct> findByIdAndShop(Long id, Profile shop);
+
+    List<ShopProduct> findByShopAndCategory(Profile shop, Category category);
 }

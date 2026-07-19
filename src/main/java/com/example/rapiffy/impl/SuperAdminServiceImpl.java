@@ -1,7 +1,12 @@
 package com.example.rapiffy.impl;
 
+import com.example.rapiffy.common.CAddress;
+import com.example.rapiffy.common.CBank;
+import com.example.rapiffy.common.CName;
+import com.example.rapiffy.dto.admin.AdminProfileResponse;
 import com.example.rapiffy.dto.superadmin.*;
 import com.example.rapiffy.enums.AuthProvider;
+import com.example.rapiffy.enums.CategoryType;
 import com.example.rapiffy.enums.Roles;
 import com.example.rapiffy.exceptions.ApiException;
 import com.example.rapiffy.model.*;
@@ -24,16 +29,19 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     private final MasterProductRepository masterProductRepository;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
+    private final ShopProductRepository shopProductRepository;
     private final BCryptPasswordEncoder passwordEncoder;
 
     public SuperAdminServiceImpl(CategoryRepository categoryRepository,
                                  MasterProductRepository masterProductRepository,
                                  UserRepository userRepository,
-                                 ProfileRepository profileRepository) {
+                                 ProfileRepository profileRepository,
+                                 ShopProductRepository shopProductRepository) {
         this.categoryRepository = categoryRepository;
         this.masterProductRepository = masterProductRepository;
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
+        this.shopProductRepository = shopProductRepository;
         this.passwordEncoder = new BCryptPasswordEncoder();
     }
 
@@ -42,14 +50,13 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     @Override
     public SuperAdminActionResponse createCategory(CreateCategoryRequest request) {
         Category category = new Category();
-        category.setCategoryCode(request.getCategoryCode());
-        category.setCategoryName(request.getCategoryName());
+        category.setCategoryType(request.getCategoryType());
         category.setImageUrl(request.getImageUrl());
         category.setDescription(request.getDescription());
         category.setActive(true);
 
         categoryRepository.save(category);
-        return new SuperAdminActionResponse("Category '" + request.getCategoryName() + "' created successfully");
+        return new SuperAdminActionResponse("Category '" + request.getCategoryType().display() + "' created successfully");
     }
 
     @Override
@@ -65,6 +72,48 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         category.setActive(false);
         categoryRepository.save(category);
         return new SuperAdminActionResponse("Category '" + category.getCategoryName() + "' deactivated");
+    }
+
+    @Override
+    public SuperAdminActionResponse addMasterProduct(AddMasterProductRequest request) {
+        Category category = categoryRepository.findById(request.getCategoryId())
+            .orElseThrow(() -> new ApiException("Category not found", HttpStatus.NOT_FOUND));
+
+        if (masterProductRepository.existsByProductCode(request.getProductCode())) {
+            throw new ApiException("Product code '" + request.getProductCode() + "' already exists", HttpStatus.CONFLICT);
+        }
+
+        MasterProduct mp = new MasterProduct();
+        mp.setCategory(category);
+        mp.setProductCode(request.getProductCode());
+        mp.setProductName(request.getProductName());
+        mp.setBrand(request.getBrand());
+        mp.setUnit(request.getUnit());
+        mp.setUnitValue(request.getUnitValue());
+        mp.setMrp(request.getMrp());
+        mp.setImageUrl(request.getImageUrl());
+        mp.setShortDescription(request.getShortDescription());
+        mp.setLongDescription(request.getLongDescription());
+        mp.setHasVariants(request.isHasVariants());
+        mp.setActive(true);
+
+        if (request.getVariants() != null && !request.getVariants().isEmpty()) {
+            mp.setHasVariants(true);
+            syncMasterVariants(mp, request.getVariants());
+        }
+
+        masterProductRepository.save(mp);
+        return new SuperAdminActionResponse("Master product '" + mp.getProductName() + "' added successfully");
+    }
+
+    @Override
+    public List<MasterProductResponse> getAllMasterProducts(Long categoryId) {
+        List<MasterProduct> products = categoryId != null
+            ? masterProductRepository.findByCategory(
+                categoryRepository.findById(categoryId)
+                    .orElseThrow(() -> new ApiException("Category not found", HttpStatus.NOT_FOUND)))
+            : masterProductRepository.findAll();
+        return products.stream().map(MasterProductResponse::from).collect(Collectors.toList());
     }
 
     // ── CSV IMPORT ───────────────────────────────────────────────────────────
@@ -177,6 +226,73 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         return new SuperAdminActionResponse("Master product '" + mp.getProductName() + "' updated successfully");
     }
 
+    @Override
+    public SuperAdminActionResponse addProductToShop(AddProductToShopRequest request) {
+        User user = userRepository.findByPhoneNumber(request.getAdminPhone())
+            .orElseThrow(() -> new ApiException("Admin not found with phone: " + request.getAdminPhone(), HttpStatus.NOT_FOUND));
+
+        if (user.getRole() != Roles.ADMIN) {
+            throw new ApiException("User is not an Admin", HttpStatus.BAD_REQUEST);
+        }
+
+        Profile profile = profileRepository.findByUserId(user.getId())
+            .orElseThrow(() -> new ApiException("Profile not found", HttpStatus.NOT_FOUND));
+
+        MasterProduct mp = masterProductRepository.findById(request.getMasterProductId())
+            .orElseThrow(() -> new ApiException("Master product not found", HttpStatus.NOT_FOUND));
+
+        Category category = categoryRepository.findById(request.getCategoryId())
+            .orElseThrow(() -> new ApiException("Category not found", HttpStatus.NOT_FOUND));
+
+        boolean categoryBelongsToShop = profile.getShopCategories().stream()
+            .anyMatch(c -> c.getId().equals(category.getId()));
+        if (!categoryBelongsToShop) {
+            throw new ApiException("Category '" + category.getCategoryName() + "' is not assigned to this shop", HttpStatus.BAD_REQUEST);
+        }
+
+        if (shopProductRepository.findByShopAndMasterProduct(profile, mp).isPresent()) {
+            throw new ApiException("Product already exists in this shop", HttpStatus.CONFLICT);
+        }
+
+        ShopProduct sp = new ShopProduct();
+        sp.setShop(profile);
+        sp.setMasterProduct(mp);
+        sp.setCategory(category);
+        sp.setProductName(mp.getProductName());
+        sp.setShortDescription(mp.getShortDescription());
+        sp.setLongDescription(mp.getLongDescription());
+        sp.setBrand(mp.getBrand());
+        sp.setUnit(mp.getUnit());
+        sp.setUnitValue(mp.getUnitValue());
+        sp.setMrp(mp.getMrp());
+        sp.setImageUrl(mp.getImageUrl());
+        sp.setSellingPrice(0.0);
+        sp.setStockQuantity(0);
+        sp.setHasVariants(mp.isHasVariants());
+        sp.setActive(true);
+
+        shopProductRepository.save(sp);
+        return new SuperAdminActionResponse("Product '" + mp.getProductName() + "' added to shop '" + profile.getShopName() + "'");
+    }
+
+    @Override
+    public AdminProfileResponse getAdminProfile(String phoneNumber) {
+        User user = userRepository.findByPhoneNumber(phoneNumber)
+            .orElseThrow(() -> new ApiException("Admin not found", HttpStatus.NOT_FOUND));
+        if (user.getRole() != Roles.ADMIN)
+            throw new ApiException("User is not an Admin", HttpStatus.BAD_REQUEST);
+        Profile profile = profileRepository.findByUserId(user.getId())
+            .orElseThrow(() -> new ApiException("Profile not found", HttpStatus.NOT_FOUND));
+        return buildAdminProfileResponse(profile, user);
+    }
+
+    @Override
+    public List<AdminProfileResponse> getAllAdmins() {
+        return profileRepository.findAllByUserRole(Roles.ADMIN).stream()
+            .map(p -> buildAdminProfileResponse(p, p.getUser()))
+            .collect(Collectors.toList());
+    }
+
     // ── ADMIN ONBOARDING & REMOVAL ──────────────────────────────────────────
 
     @Override
@@ -195,11 +311,14 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         user.setAuthProvider(AuthProvider.NORMAL);
         User savedUser = userRepository.save(user);
 
-        // Fetch categories
-        List<Category> categories = categoryRepository.findAllById(request.getCategoryIds());
+        // Fetch categories by enum types
+        List<Category> categories = categoryRepository.findByCategoryTypeIn(request.getCategoryTypes());
         if (categories.isEmpty()) {
             throw new ApiException("No valid categories found", HttpStatus.BAD_REQUEST);
         }
+
+        // Auto-set editUnlistedProducts = true if CLOTH category is assigned
+        boolean hasCloth = request.getCategoryTypes().contains(CategoryType.CLOTH);
 
         // Create Profile with shop details
         Profile profile = new Profile();
@@ -208,6 +327,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         profile.setShopCategories(categories);
         profile.setServingRangeInKm(request.getServingRangeInKm());
         profile.setGstNumber(request.getGstNumber());
+        profile.setEditUnlistedProducts(hasCloth);
 
         // Set bank details
         if (request.getBankAccountNumber() != null) {
@@ -221,9 +341,116 @@ public class SuperAdminServiceImpl implements SuperAdminService {
 
         profileRepository.save(profile);
 
+        // Bulk-add all active MasterProducts for assigned categories as ShopProducts
+        if (request.isAddAllProducts()) {
+            List<MasterProduct> masterProducts = masterProductRepository.findByCategoryInAndIsActiveTrue(categories);
+            List<ShopProduct> shopProducts = masterProducts.stream().map(mp -> {
+                ShopProduct sp = new ShopProduct();
+                sp.setShop(profile);
+                sp.setMasterProduct(mp);
+                sp.setProductName(mp.getProductName());
+                sp.setShortDescription(mp.getShortDescription());
+                sp.setLongDescription(mp.getLongDescription());
+                sp.setBrand(mp.getBrand());
+                sp.setUnit(mp.getUnit());
+                sp.setUnitValue(mp.getUnitValue());
+                sp.setMrp(mp.getMrp());
+                sp.setImageUrl(mp.getImageUrl());
+                sp.setSellingPrice(0.0);
+                sp.setStockQuantity(0);
+                sp.setHasVariants(mp.isHasVariants());
+                sp.setActive(true);
+                return sp;
+            }).collect(Collectors.toList());
+            shopProductRepository.saveAll(shopProducts);
+        }
+
         return new SuperAdminActionResponse(
             "Admin '" + request.getShopName() + "' onboarded with " + categories.size() + " categories"
         );
+    }
+
+    @Override
+    public SuperAdminActionResponse updateAdminProfile(String phoneNumber, UpdateAdminProfileBySuperAdminRequest request) {
+        User user = userRepository.findByPhoneNumber(phoneNumber)
+            .orElseThrow(() -> new ApiException("Admin not found with phone: " + phoneNumber, HttpStatus.NOT_FOUND));
+
+        if (user.getRole() != Roles.ADMIN) {
+            throw new ApiException("User is not an Admin", HttpStatus.BAD_REQUEST);
+        }
+
+        Profile profile = profileRepository.findByUserId(user.getId())
+            .orElseThrow(() -> new ApiException("Profile not found", HttpStatus.NOT_FOUND));
+
+        // Name
+        CName name = profile.getFullName() != null ? profile.getFullName() : new CName();
+        if (request.getPrefix() != null) name.setPrefix(request.getPrefix());
+        if (request.getFirstName() != null) name.setFirstName(request.getFirstName());
+        if (request.getMiddleName() != null) name.setMiddleName(request.getMiddleName());
+        if (request.getLastName() != null) name.setLastName(request.getLastName());
+        if (request.getSuffix() != null) name.setSuffix(request.getSuffix());
+        profile.setFullName(name);
+
+        // Address
+        CAddress address = profile.getAddress() != null ? profile.getAddress() : new CAddress();
+        if (request.getPinCode() != null) address.setPinCode(request.getPinCode());
+        if (request.getState() != null) address.setState(request.getState());
+        if (request.getCity() != null) address.setCity(request.getCity());
+        if (request.getCountry() != null) address.setCountry(request.getCountry());
+        if (request.getAddressLine1() != null) address.setAddressLine1(request.getAddressLine1());
+        if (request.getLatitude() != null) address.setLatitude(request.getLatitude());
+        if (request.getLongitude() != null) address.setLongitude(request.getLongitude());
+        profile.setAddress(address);
+
+        // Personal fields
+        if (request.getDob() != null) profile.setDob(request.getDob());
+        if (request.getPan() != null) profile.setPan(request.getPan());
+        if (request.getAadhaar() != null) profile.setAadhaar(request.getAadhaar());
+
+        // Shop details
+        if (request.getShopName() != null) profile.setShopName(request.getShopName());
+        if (request.getServingRangeInKm() != null) profile.setServingRangeInKm(request.getServingRangeInKm());
+        if (request.getGstNumber() != null) profile.setGstNumber(request.getGstNumber());
+        if (request.getNoOfDeliveryPersons() != null) profile.setNoOfDeliveryPersons(request.getNoOfDeliveryPersons());
+
+        // Categories — additive merge by enum type, no duplicates
+        if (request.getCategoryTypes() != null && !request.getCategoryTypes().isEmpty()) {
+            List<Category> newCategories = categoryRepository.findByCategoryTypeIn(request.getCategoryTypes());
+            if (newCategories.isEmpty()) throw new ApiException("No valid categories found", HttpStatus.BAD_REQUEST);
+            newCategories.forEach(c -> {
+                if (!profile.getShopCategories().contains(c)) profile.getShopCategories().add(c);
+            });
+            // Auto-set editUnlistedProducts if CLOTH is in the new or existing categories
+            boolean hasCloth = profile.getShopCategories().stream()
+                .anyMatch(c -> c.getCategoryType() == CategoryType.CLOTH);
+            profile.setEditUnlistedProducts(hasCloth);
+        }
+
+        // Manual override of editUnlistedProducts by SUPERADMIN (takes precedence)
+        if (request.getEditUnlistedProducts() != null) {
+            profile.setEditUnlistedProducts(request.getEditUnlistedProducts());
+        }
+
+        // Bank details (SuperAdmin exclusive)
+        CBank bank = profile.getBankDetails() != null ? profile.getBankDetails() : new CBank();
+        if (request.getNameOnCard() != null) bank.setNameOnCard(request.getNameOnCard());
+        if (request.getMerchantType() != null) bank.setMerchantType(request.getMerchantType());
+        if (request.getBankAccountNumber() != null) bank.setBankAccountNumber(request.getBankAccountNumber());
+        if (request.getIfsc() != null) bank.setIfsc(request.getIfsc());
+        profile.setBankDetails(bank);
+
+        // Sync email — skip if already taken by another user
+        if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
+            boolean emailTaken = userRepository.findByEmail(request.getEmail())
+                .filter(u -> !u.getId().equals(user.getId()))
+                .isPresent();
+            if (emailTaken) throw new ApiException("Email already in use", HttpStatus.CONFLICT);
+            user.setEmail(request.getEmail());
+            userRepository.save(user);
+        }
+
+        profileRepository.save(profile);
+        return new SuperAdminActionResponse("Admin profile updated successfully");
     }
 
     @Override
@@ -243,6 +470,58 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     }
 
     // ── HELPERS ──────────────────────────────────────────────────────────────
+
+    private AdminProfileResponse buildAdminProfileResponse(Profile profile, User user) {
+        AdminProfileResponse r = new AdminProfileResponse();
+        r.setProfileId(profile.getId());
+        CName name = profile.getFullName();
+        if (name != null) {
+            r.setPrefix(name.getPrefix());
+            r.setFirstName(name.getFirstName());
+            r.setMiddleName(name.getMiddleName());
+            r.setLastName(name.getLastName());
+            r.setSuffix(name.getSuffix());
+        }
+        r.setEmail(user.getEmail());
+        r.setPhoneNumber(user.getPhoneNumber());
+        r.setDob(profile.getDob());
+        r.setPan(profile.getPan());
+        r.setAadhaar(profile.getAadhaar());
+        CAddress addr = profile.getAddress();
+        if (addr != null) {
+            r.setPinCode(addr.getPinCode());
+            r.setState(addr.getState());
+            r.setCity(addr.getCity());
+            r.setCountry(addr.getCountry());
+            r.setAddressLine1(addr.getAddressLine1());
+            r.setLatitude(addr.getLatitude());
+            r.setLongitude(addr.getLongitude());
+        }
+        r.setShopName(profile.getShopName());
+        r.setShopCategories(profile.getShopCategories().stream()
+            .map(c -> c.getCategoryName()).collect(Collectors.toList()));
+        r.setServingRangeInKm(profile.getServingRangeInKm());
+        r.setGstNumber(profile.getGstNumber());
+        r.setNoOfDeliveryPersons(profile.getNoOfDeliveryPersons());
+        r.setEditUnlistedProducts(profile.isEditUnlistedProducts());
+        CBank bank = profile.getBankDetails();
+        if (bank != null) {
+            r.setNameOnCard(bank.getNameOnCard());
+            r.setMerchantType(bank.getMerchantType());
+            r.setMaskedAccountNumber(maskLast(bank.getBankAccountNumber(), 4));
+            r.setMaskedIfsc(maskLast(bank.getIfsc(), 3));
+        }
+        r.setSubscriptionStartDate(profile.getSubscriptionStartDate());
+        r.setSubscriptionEndDate(profile.getSubscriptionEndDate());
+        r.setSubscriptionStatus(profile.getSubscriptionStatus() != null
+            ? profile.getSubscriptionStatus().name() : null);
+        return r;
+    }
+
+    private String maskLast(String value, int lastN) {
+        if (value == null || value.length() <= lastN) return value;
+        return "x".repeat(value.length() - lastN) + value.substring(value.length() - lastN);
+    }
 
     private String getColumn(String[] columns, int index) {
         if (index < columns.length && !columns[index].isBlank()) {
@@ -324,5 +603,6 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         // Replace — orphanRemoval handles DB delete for removed ones
         mp.getVariants().clear();
         mp.getVariants().addAll(updatedList);
+        mp.setHasVariants(!updatedList.isEmpty());
     }
 }

@@ -1,5 +1,6 @@
 package com.example.rapiffy.services;
 
+import com.example.rapiffy.dto.admin.AdminProfileResponse;
 import com.example.rapiffy.dto.superadmin.*;
 import com.example.rapiffy.model.Category;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,10 +18,16 @@ public interface SuperAdminService {
     SuperAdminActionResponse deactivateCategory(Long categoryId);
 
     // Master product catalog
+    SuperAdminActionResponse addMasterProduct(AddMasterProductRequest request);
     CsvImportResponse importCatalog(Long categoryId, MultipartFile file);
     SuperAdminActionResponse updateMasterProduct(Long masterProductId, UpdateMasterProductRequest request);
+    List<MasterProductResponse> getAllMasterProducts(Long categoryId);
+    SuperAdminActionResponse addProductToShop(AddProductToShopRequest request);
 
-    // Admin onboarding & removal
+    // Admin management
+    AdminProfileResponse getAdminProfile(String phoneNumber);
+    List<AdminProfileResponse> getAllAdmins();
     SuperAdminActionResponse onboardAdmin(OnboardAdminRequest request);
     SuperAdminActionResponse removeAdmin(Long adminUserId);
+    SuperAdminActionResponse updateAdminProfile(String phoneNumber, UpdateAdminProfileBySuperAdminRequest request);
 }

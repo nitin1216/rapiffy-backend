@@ -1,5 +1,6 @@
 package com.example.rapiffy.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -27,6 +28,7 @@ public class MasterProductVariant {
     private Long id;
 
     // Parent MasterProduct this variant belongs to
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "master_product_id", nullable = false)
     private MasterProduct masterProduct;

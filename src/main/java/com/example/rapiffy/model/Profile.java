@@ -44,6 +44,10 @@ public class Profile {
     @Column(name = "shop_name")
     private String shopName;
 
+    // Only SUPERADMIN can set this. true = Admin can add unlisted products (e.g. Cloth category)
+    @Column(name = "edit_unlisted_products", nullable = false)
+    private boolean editUnlistedProducts = false;
+
     // One shop can sell multiple categories (Grocery + Dairy + Personal Care)
     // Admin selects these during profile setup
     @ManyToMany(fetch = FetchType.LAZY)
