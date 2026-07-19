@@ -2,10 +2,12 @@ package com.example.rapiffy.model;
 
 import java.time.LocalDateTime;
 
+import com.example.rapiffy.common.CName;
 import com.example.rapiffy.enums.AuthProvider;
 import com.example.rapiffy.enums.Roles;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -30,6 +32,9 @@ public class User {
 
     @Column(name = "phone_number", unique = true, nullable = true)
     private String phoneNumber;
+
+    @Embedded
+    private CName fullName;
 
     // Nullable — Google users have no password
     @Column(nullable = true)

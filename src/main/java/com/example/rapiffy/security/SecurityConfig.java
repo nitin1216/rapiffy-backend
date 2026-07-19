@@ -33,6 +33,13 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Open: signup and login (including Google)
                 .requestMatchers("/v1/auth/**").permitAll()
+                // Open: customer browsing (no login needed)
+                .requestMatchers("/v1/customer/shops/**").permitAll()
+                .requestMatchers("/v1/customer/products").permitAll()
+                // Auth required: customer orders and cart
+                .requestMatchers("/v1/customer/orders/**").authenticated()
+                .requestMatchers("/v1/customer/cart/**").authenticated()
+                .requestMatchers("/v1/customer/profile/**").authenticated()
                 // Open: Swagger UI
                 .requestMatchers(
                     "/swagger-ui.html",

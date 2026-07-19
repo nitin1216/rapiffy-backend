@@ -2,6 +2,7 @@ package com.example.rapiffy.controller;
 
 import com.example.rapiffy.dto.admin.AdminProfileResponse;
 import com.example.rapiffy.dto.admin.UpdateAdminProfileRequest;
+import com.example.rapiffy.dto.admin.UpdateShopLocationRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
@@ -26,11 +27,16 @@ public interface AdminProfileController {
     @GetMapping
     ResponseEntity<AdminProfileResponse> getProfile();
 
-    @Operation(
-        summary = "Update Admin's profile",
-        description = "Admin updates personal details, address, shop info. "
-            + "Phone and bank details cannot be changed by Admin."
-    )
+    @Operation(summary = "Update Admin's profile")
     @PutMapping
     ResponseEntity<AdminProfileResponse> updateProfile(@RequestBody UpdateAdminProfileRequest request);
+
+    @Operation(
+        summary = "Update shop location",
+        description = "One-time setup. Admin sets shop lat/lng from device location. "
+            + "Shop is at a fixed position so this only needs to be called once during setup. "
+            + "Used by customers to discover nearby shops."
+    )
+    @PutMapping("/location")
+    ResponseEntity<Void> updateShopLocation(@RequestBody UpdateShopLocationRequest request);
 }

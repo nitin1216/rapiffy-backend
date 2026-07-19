@@ -123,6 +123,8 @@ public class ShopProduct {
     @JoinColumn(name = "category_id")
     private Category category;
 
+    private String gstSlab;
+
     // ─── TIMESTAMPS ──────────────────────────────────────────────────────────
 
     @Column(name = "created_at", updatable = false)

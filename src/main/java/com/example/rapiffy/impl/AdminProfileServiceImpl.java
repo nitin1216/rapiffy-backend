@@ -5,6 +5,7 @@ import com.example.rapiffy.common.CBank;
 import com.example.rapiffy.common.CName;
 import com.example.rapiffy.dto.admin.AdminProfileResponse;
 import com.example.rapiffy.dto.admin.UpdateAdminProfileRequest;
+import com.example.rapiffy.dto.admin.UpdateShopLocationRequest;
 import com.example.rapiffy.exceptions.ApiException;
 import com.example.rapiffy.model.Profile;
 import com.example.rapiffy.model.User;
@@ -154,5 +155,17 @@ public class AdminProfileServiceImpl implements AdminProfileService {
         String visible = value.substring(value.length() - lastN);
         String masked = "x".repeat(value.length() - lastN);
         return masked + visible;
+    }
+
+    @Override
+    @Transactional
+    public void updateShopLocation(Long userId, UpdateShopLocationRequest request) {
+        Profile profile = profileRepository.findByUserId(userId)
+                .orElseThrow(() -> new ApiException("Profile not found", HttpStatus.NOT_FOUND));
+        CAddress address = profile.getAddress() != null ? profile.getAddress() : new CAddress();
+        address.setLatitude(request.getLatitude());
+        address.setLongitude(request.getLongitude());
+        profile.setAddress(address);
+        profileRepository.save(profile);
     }
 }

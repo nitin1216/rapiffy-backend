@@ -1,5 +1,6 @@
 package com.example.rapiffy.impl;
 
+import com.example.rapiffy.common.CName;
 import com.example.rapiffy.exceptions.ApiException;
 import com.example.rapiffy.dto.GoogleAuthRequest;
 import com.example.rapiffy.dto.LoginResponse;
@@ -46,10 +47,12 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
         GoogleIdToken.Payload payload = verifyToken(request.getIdToken());
 
         // 2. Extract user info from the verified token
-        String googleSub = payload.getSubject();
-        String email     = payload.getEmail();
-        boolean verified = payload.getEmailVerified();
-        String picture   = (String) payload.get("picture");
+        String googleSub  = payload.getSubject();
+        String email      = payload.getEmail();
+        boolean verified  = payload.getEmailVerified();
+        String picture    = (String) payload.get("picture");
+        String firstName  = (String) payload.get("given_name");
+        String lastName   = (String) payload.get("family_name");
 
         if (!verified) {
             throw new ApiException("Google email is not verified", HttpStatus.UNAUTHORIZED);
@@ -68,7 +71,8 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
             user.setEmailVerified(true);
             user.setPicture(picture);
             user.setAuthProvider(AuthProvider.GOOGLE);
-            user.setRole(role); // role set by whichever endpoint was called
+            user.setRole(role);
+            user.setFullName(buildName(firstName, lastName));
 
             User savedUser = userRepository.save(user);
 
@@ -90,6 +94,8 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
             user.setGoogleSub(googleSub);
             user.setEmailVerified(true);
             user.setPicture(picture);
+            // Update name from Google in case it changed
+            user.setFullName(buildName(firstName, lastName));
             if (user.getAuthProvider() != AuthProvider.GOOGLE) {
                 user.setAuthProvider(AuthProvider.GOOGLE);
             }
@@ -99,6 +105,13 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
         // 5. Generate and return app JWT
         String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
         return new LoginResponse(token, "Google login successful");
+    }
+
+    private CName buildName(String firstName, String lastName) {
+        CName name = new CName();
+        name.setFirstName(firstName);
+        name.setLastName(lastName);
+        return name;
     }
 
     /**

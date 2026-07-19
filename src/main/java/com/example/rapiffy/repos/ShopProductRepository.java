@@ -23,4 +23,8 @@ public interface ShopProductRepository extends JpaRepository<ShopProduct, Long> 
     Optional<ShopProduct> findByIdAndShop(Long id, Profile shop);
 
     List<ShopProduct> findByShopAndCategory(Profile shop, Category category);
+
+    List<ShopProduct> findByShopIdAndIsActive(Long shopId, boolean isActive);
+
+    List<ShopProduct> findByShopIdAndCategoryIdAndIsActive(Long shopId, Long categoryId, boolean isActive);
 }

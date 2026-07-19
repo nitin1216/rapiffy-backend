@@ -3,6 +3,7 @@ package com.example.rapiffy.impl;
 import com.example.rapiffy.controller.AdminProfileController;
 import com.example.rapiffy.dto.admin.AdminProfileResponse;
 import com.example.rapiffy.dto.admin.UpdateAdminProfileRequest;
+import com.example.rapiffy.dto.admin.UpdateShopLocationRequest;
 import com.example.rapiffy.exceptions.ApiException;
 import com.example.rapiffy.model.User;
 import com.example.rapiffy.repos.UserRepository;
@@ -32,6 +33,12 @@ public class AdminProfileControllerImpl implements AdminProfileController {
     @Override
     public ResponseEntity<AdminProfileResponse> updateProfile(UpdateAdminProfileRequest request) {
         return ResponseEntity.ok(profileService.updateProfile(getCurrentUserId(), request));
+    }
+
+    @Override
+    public ResponseEntity<Void> updateShopLocation(UpdateShopLocationRequest request) {
+        profileService.updateShopLocation(getCurrentUserId(), request);
+        return ResponseEntity.ok().build();
     }
 
     private Long getCurrentUserId() {
