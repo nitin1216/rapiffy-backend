@@ -97,6 +97,13 @@
 			<version>2.7.0</version>
 		</dependency>
 
+		<!-- Flying Saucer: HTML to PDF converter -->
+		<dependency>
+			<groupId>org.xhtmlrenderer</groupId>
+			<artifactId>flying-saucer-pdf</artifactId>
+			<version>9.1.22</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>
