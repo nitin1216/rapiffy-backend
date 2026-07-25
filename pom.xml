@@ -104,6 +104,20 @@
 			<version>9.1.22</version>
 		</dependency>
 
+		<!-- Razorpay Java SDK -->
+		<dependency>
+			<groupId>com.razorpay</groupId>
+			<artifactId>razorpay-java</artifactId>
+			<version>1.4.8</version>
+		</dependency>
+
+		<!--JSON parsing (used in webhook payload handling)-->
+		<dependency>
+			<groupId>org.json</groupId>
+			<artifactId>json</artifactId>
+			<version>20240303</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>

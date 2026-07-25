@@ -90,6 +90,13 @@ public class Profile {
     @Embedded
     private CBank bankDetails;
 
+    // ─── PAYMENT (Razorpay Route) ────────────────────────────────────────────
+
+    // Razorpay linked account ID for this shop (created during onboarding)
+    // Used for Route transfers — money from customer payment is routed here
+    @Column(name = "razorpay_linked_account_id")
+    private String razorpayLinkedAccountId;
+
     // ─── SUBSCRIPTION (managed by SuperAdmin) ────────────────────────────────
 
     @Column(name = "subscription_start_date")

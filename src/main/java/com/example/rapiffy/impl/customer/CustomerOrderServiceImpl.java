@@ -65,7 +65,7 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         parentOrder.setDeliveryType(request.getDeliveryType().toUpperCase());
         parentOrder.setDeliveryAddress(request.getDeliveryAddress());
         parentOrder.setOrderNumber("PO-" + dateStr + "-" + uniqueSuffix);
-        parentOrder.setStatus(OrderStatus.PENDING);
+        parentOrder.setStatus(OrderStatus.PAYMENT_PENDING);
         parentOrder.setSubtotal(0.0);
         parentOrder.setTotalGst(0.0);
         parentOrder.setTotalAmount(0.0);
@@ -137,7 +137,7 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
             subOrder.setTotalGst(Math.round(subGst * 100.0) / 100.0);
             subOrder.setDeliveryCharge(0.0);
             subOrder.setTotalAmount(subOrderTotal);
-            subOrder.setStatus(OrderStatus.PENDING);
+            subOrder.setStatus(OrderStatus.PAYMENT_PENDING);
             Order savedSubOrder = orderRepository.save(subOrder);
 
             orderItems.forEach(item -> item.setOrder(savedSubOrder));

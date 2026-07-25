@@ -1,5 +1,6 @@
 package com.example.rapiffy.impl.customer;
 
+import com.example.rapiffy.common.CAddress;
 import com.example.rapiffy.dto.customer.*;
 import com.example.rapiffy.exceptions.ApiException;
 import com.example.rapiffy.model.*;
@@ -21,6 +22,7 @@ public class CustomerCartServiceImpl implements CustomerCartService {
     private final CartItemRepository cartItemRepository;
     private final ShopProductRepository shopProductRepository;
     private final UserRepository userRepository;
+    private final CustomerAddressRepository customerAddressRepository;
 
     @Override
     public CartResponse getCart(Long userId) {
@@ -42,6 +44,28 @@ public class CustomerCartServiceImpl implements CustomerCartService {
 
         if (sp.getStockQuantity() < request.getQuantity())
             throw new ApiException("Insufficient stock for: " + sp.getProductName(), HttpStatus.BAD_REQUEST);
+
+        // ─── DELIVERY RANGE VALIDATION ───────────────────────────────────────
+        // Check if the shop can deliver to customer's default address
+        Profile shop = sp.getShop();
+        if (shop.getServingRangeInKm() != null && shop.getAddress() != null) {
+            CustomerAddress defaultAddress = customerAddressRepository
+                    .findByCustomerAndIsDefault(customer, true).orElse(null);
+
+            if (defaultAddress != null && defaultAddress.getAddress() != null) {
+                double distance = calculateDistanceKm(
+                        shop.getAddress().getLatitude(), shop.getAddress().getLongitude(),
+                        defaultAddress.getAddress().getLatitude(), defaultAddress.getAddress().getLongitude()
+                );
+                if (distance > shop.getServingRangeInKm()) {
+                    throw new ApiException(
+                            "This product is not deliverable to your saved address. "
+                            + shop.getShopName() + " delivers within " + shop.getServingRangeInKm().intValue()
+                            + " km, but your address is " + String.format("%.1f", distance) + " km away.",
+                            HttpStatus.BAD_REQUEST);
+                }
+            }
+        }
 
         // Get or create cart
         Cart cart = cartRepository.findByCustomer(customer).orElseGet(() -> {
@@ -185,5 +209,30 @@ public class CustomerCartServiceImpl implements CustomerCartService {
         r.setTotalAmount(Math.round(grandTotal * 100.0) / 100.0);
         r.setShops(shopGroups);
         return r;
+    }
+
+    /**
+     * Calculate distance between two coordinates using Haversine formula.
+     * Returns distance in kilometers.
+     */
+    private double calculateDistanceKm(String lat1Str, String lng1Str, String lat2Str, String lng2Str) {
+        if (lat1Str == null || lng1Str == null || lat2Str == null || lng2Str == null) return 0.0;
+        try {
+            double lat1 = Double.parseDouble(lat1Str);
+            double lng1 = Double.parseDouble(lng1Str);
+            double lat2 = Double.parseDouble(lat2Str);
+            double lng2 = Double.parseDouble(lng2Str);
+
+            final double R = 6371; // Earth's radius in km
+            double dLat = Math.toRadians(lat2 - lat1);
+            double dLng = Math.toRadians(lng2 - lng1);
+            double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                    + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                    * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        } catch (NumberFormatException e) {
+            return 0.0; // If lat/lng are invalid, skip validation
+        }
     }
 }

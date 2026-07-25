@@ -1,5 +1,6 @@
 package com.example.rapiffy.model;
 
+import com.example.rapiffy.enums.CancelledBy;
 import com.example.rapiffy.enums.OrderStatus;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -14,7 +15,9 @@ import java.util.List;
  * Created internally when a customer places a ParentOrder.
  * Each shop gets their own Order with only their products.
  *
- * Flow: PENDING → CONFIRMED → READY → OUT_FOR_DELIVERY → DELIVERED
+ * Flow: PAYMENT_PENDING → PENDING → CONFIRMED → READY → OUT_FOR_DELIVERY → DELIVERED
+ *       PENDING → CANCELLED (by customer)
+ *       PENDING → REJECTED (by admin)
  */
 @Entity
 @Table(name = "orders")
@@ -77,7 +80,26 @@ public class Order {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
-    private OrderStatus status = OrderStatus.PENDING;
+    private OrderStatus status = OrderStatus.PAYMENT_PENDING;
+
+    // ─── CANCELLATION ────────────────────────────────────────────────────────
+
+    // Who cancelled this sub-order (null if not cancelled)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancelled_by", length = 20)
+    private CancelledBy cancelledBy;
+
+    // Reason for cancellation (e.g. "Customer changed mind", "Out of stock")
+    @Column(name = "cancellation_reason", columnDefinition = "TEXT")
+    private String cancellationReason;
+
+    // When the sub-order was cancelled
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
+
+    // Whether refund has been processed for this sub-order
+    @Column(name = "is_refunded", nullable = false)
+    private boolean isRefunded = false;
 
     // ─── INVOICE ─────────────────────────────────────────────────────────────
 

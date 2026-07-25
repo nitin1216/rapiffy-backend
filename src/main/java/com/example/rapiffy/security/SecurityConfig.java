@@ -36,10 +36,13 @@ public class SecurityConfig {
                 // Open: customer browsing (no login needed)
                 .requestMatchers("/v1/customer/shops/**").permitAll()
                 .requestMatchers("/v1/customer/products").permitAll()
+                // Open: Razorpay webhook (called by Razorpay servers, not users)
+                .requestMatchers("/v1/webhook/**").permitAll()
                 // Auth required: customer orders and cart
                 .requestMatchers("/v1/customer/orders/**").authenticated()
                 .requestMatchers("/v1/customer/cart/**").authenticated()
                 .requestMatchers("/v1/customer/profile/**").authenticated()
+                .requestMatchers("/v1/customer/payment/**").authenticated()
                 // Open: Swagger UI
                 .requestMatchers(
                     "/swagger-ui.html",

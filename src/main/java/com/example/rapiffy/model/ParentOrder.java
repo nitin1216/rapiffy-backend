@@ -1,6 +1,7 @@
 package com.example.rapiffy.model;
 
 import com.example.rapiffy.enums.OrderStatus;
+import com.example.rapiffy.enums.PaymentStatus;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -62,12 +63,23 @@ public class ParentOrder {
     @Column(name = "total_amount", nullable = false)
     private Double totalAmount;
 
+    // ─── PAYMENT ─────────────────────────────────────────────────────────────
+
+    // Payment status for this order (tracks payment lifecycle separately from order status)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false, length = 25)
+    private PaymentStatus paymentStatus = PaymentStatus.PENDING;
+
+    // Total amount refunded so far (sum of all sub-order refunds)
+    @Column(name = "refunded_amount", nullable = false)
+    private Double refundedAmount = 0.0;
+
     // ─── OVERALL STATUS ──────────────────────────────────────────────────────
-    // PENDING until all sub-orders are DELIVERED
+    // PAYMENT_PENDING → PENDING (after payment) → tracks based on sub-order statuses
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
-    private OrderStatus status = OrderStatus.PENDING;
+    private OrderStatus status = OrderStatus.PAYMENT_PENDING;
 
     // ─── TIMESTAMPS ──────────────────────────────────────────────────────────
 
