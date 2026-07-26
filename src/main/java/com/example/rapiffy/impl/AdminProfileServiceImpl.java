@@ -122,6 +122,7 @@ public class AdminProfileServiceImpl implements AdminProfileService {
         r.setShopName(profile.getShopName());
         r.setShopCategories(profile.getShopCategories().stream()
             .map(c -> c.getCategoryName())
+            .distinct()
             .collect(Collectors.toList()));
         r.setServingRangeInKm(profile.getServingRangeInKm());
         r.setGstNumber(profile.getGstNumber());

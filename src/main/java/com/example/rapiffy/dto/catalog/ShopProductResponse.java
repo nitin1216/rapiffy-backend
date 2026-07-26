@@ -3,6 +3,7 @@ package com.example.rapiffy.dto.catalog;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 public class ShopProductResponse {
@@ -24,4 +25,7 @@ public class ShopProductResponse {
     private boolean hasVariants;
     private boolean isActive;
     private boolean unlisted; // true if masterProduct is null
+
+    // Variants list — populated only when hasVariants = true
+    private List<VariantResponse> variants;
 }

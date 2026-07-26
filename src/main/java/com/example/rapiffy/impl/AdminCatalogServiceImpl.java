@@ -253,6 +253,7 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
             r.setActive(sp.isActive());
             r.setUnlisted(sp.getMasterProduct() == null);
             r.setCategoryName(category.getCategoryName());
+            r.setVariants(mapVariants(sp));
             return r;
         }).collect(Collectors.toList());
 
@@ -267,6 +268,31 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
     private Profile getShopProfile(Long userId) {
         return profileRepository.findByUserId(userId)
             .orElseThrow(() -> new ApiException("Shop profile not found", HttpStatus.NOT_FOUND));
+    }
+
+    /**
+     * Map variants from ShopProduct entity to VariantResponse list.
+     */
+    private List<VariantResponse> mapVariants(ShopProduct sp) {
+        if (!sp.isHasVariants() || sp.getVariants() == null || sp.getVariants().isEmpty()) {
+            return null;
+        }
+        return sp.getVariants().stream().map(v -> {
+            VariantResponse vr = new VariantResponse();
+            vr.setId(v.getId());
+            vr.setVariantName(v.getVariantName());
+            vr.setBrand(v.getBrand());
+            vr.setUnit(v.getUnit());
+            vr.setUnitValue(v.getUnitValue());
+            vr.setMrp(v.getMrp());
+            vr.setSellingPrice(v.getSellingPrice());
+            vr.setStockQuantity(v.getStockQuantity());
+            vr.setThresholdQuantity(v.getThresholdQuantity());
+            vr.setImageUrl(v.getImageUrl());
+            vr.setExpiryDate(v.getExpiryDate());
+            vr.setActive(v.isActive());
+            return vr;
+        }).collect(Collectors.toList());
     }
 
     /**
@@ -366,6 +392,7 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
             r.setActive(sp.isActive());
             r.setUnlisted(sp.getMasterProduct() == null);
             r.setCategoryName(categoryName);
+            r.setVariants(mapVariants(sp));
 
             grouped.computeIfAbsent(categoryName, k -> new ArrayList<>()).add(r);
         }

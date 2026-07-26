@@ -10,7 +10,9 @@ import lombok.Data;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Profile holds additional details for a User.
@@ -54,9 +56,10 @@ public class Profile {
     @JoinTable(
         name = "shop_categories",
         joinColumns = @JoinColumn(name = "profile_id"),
-        inverseJoinColumns = @JoinColumn(name = "category_id")
+        inverseJoinColumns = @JoinColumn(name = "category_id"),
+        uniqueConstraints = @UniqueConstraint(columnNames = {"profile_id", "category_id"})
     )
-    private List<Category> shopCategories = new ArrayList<>();
+    private Set<Category> shopCategories = new LinkedHashSet<>();
 
     // Delivery coverage radius in kilometers
     @Column(name = "serving_range_km")

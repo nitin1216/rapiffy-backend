@@ -324,7 +324,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         Profile profile = new Profile();
         profile.setUser(savedUser);
         profile.setShopName(request.getShopName());
-        profile.setShopCategories(categories);
+        profile.setShopCategories(new LinkedHashSet<>(categories));
         profile.setServingRangeInKm(request.getServingRangeInKm());
         profile.setGstNumber(request.getGstNumber());
         profile.setEditUnlistedProducts(hasCloth);
@@ -499,7 +499,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         }
         r.setShopName(profile.getShopName());
         r.setShopCategories(profile.getShopCategories().stream()
-            .map(c -> c.getCategoryName()).collect(Collectors.toList()));
+            .map(c -> c.getCategoryName()).distinct().collect(Collectors.toList()));
         r.setServingRangeInKm(profile.getServingRangeInKm());
         r.setGstNumber(profile.getGstNumber());
         r.setNoOfDeliveryPersons(profile.getNoOfDeliveryPersons());

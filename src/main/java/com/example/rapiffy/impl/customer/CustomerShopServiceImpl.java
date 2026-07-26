@@ -43,6 +43,7 @@ public class CustomerShopServiceImpl implements CustomerShopService {
         List<String> categories = shop.getShopCategories()
                 .stream()
                 .map(c -> c.getCategoryName())
+                .distinct()
                 .toList();
 
         return NearbyShopResponse.builder()

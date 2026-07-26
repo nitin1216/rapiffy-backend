@@ -3,6 +3,7 @@ package com.example.rapiffy.model;
 import com.example.rapiffy.enums.CategoryType;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 
@@ -17,6 +18,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "categories")
 @Data
+@EqualsAndHashCode(of = "id")
 public class Category {
 
     @Id
