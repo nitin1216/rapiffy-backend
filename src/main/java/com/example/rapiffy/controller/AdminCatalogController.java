@@ -40,6 +40,7 @@ public interface AdminCatalogController {
             + "Sets selling price, stock, and optional overrides (name, description, etc.)"
     )
     @PostMapping("/activate")
+    @Deprecated
     ResponseEntity<CatalogActionResponse> activateProduct(@RequestBody ActivateProductRequest request);
 
     // ── UPDATE PRODUCT ───────────────────────────────────────────────────────
