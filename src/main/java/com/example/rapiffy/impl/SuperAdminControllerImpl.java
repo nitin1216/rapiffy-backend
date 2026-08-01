@@ -25,8 +25,7 @@ public class SuperAdminControllerImpl implements SuperAdminController {
 
     @Override
     public ResponseEntity<SuperAdminActionResponse> createCategory(CreateCategoryRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-            .body(superAdminService.createCategory(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(superAdminService.createCategory(request));
     }
 
     @Override
@@ -39,7 +38,24 @@ public class SuperAdminControllerImpl implements SuperAdminController {
         return ResponseEntity.ok(superAdminService.deactivateCategory(categoryId));
     }
 
-    // ── CATALOG ─────────────────────────────────────────────────────────────
+    // ── SUBCATEGORY ───────────────────────────────────────────────────────────
+
+    @Override
+    public ResponseEntity<SuperAdminActionResponse> createSubCategory(CreateSubCategoryRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(superAdminService.createSubCategory(request));
+    }
+
+    @Override
+    public ResponseEntity<List<SubCategoryResponse>> getSubCategories(Long categoryId) {
+        return ResponseEntity.ok(superAdminService.getSubCategories(categoryId));
+    }
+
+    @Override
+    public ResponseEntity<SuperAdminActionResponse> deactivateSubCategory(Long subCategoryId) {
+        return ResponseEntity.ok(superAdminService.deactivateSubCategory(subCategoryId));
+    }
+
+    // ── CATALOG ───────────────────────────────────────────────────────────────
 
     @Override
     public ResponseEntity<SuperAdminActionResponse> addMasterProduct(AddMasterProductRequest request) {
@@ -47,13 +63,13 @@ public class SuperAdminControllerImpl implements SuperAdminController {
     }
 
     @Override
-    public ResponseEntity<List<MasterProductResponse>> getAllMasterProducts(Long categoryId) {
-        return ResponseEntity.ok(superAdminService.getAllMasterProducts(categoryId));
+    public ResponseEntity<List<MasterProductResponse>> getAllMasterProducts() {
+        return ResponseEntity.ok(superAdminService.getAllMasterProducts());
     }
 
     @Override
-    public ResponseEntity<CsvImportResponse> importCatalog(Long categoryId, MultipartFile file) {
-        return ResponseEntity.ok(superAdminService.importCatalog(categoryId, file));
+    public ResponseEntity<CsvImportResponse> importCatalog(Long categoryId, Long subCategoryId, MultipartFile file) {
+        return ResponseEntity.ok(superAdminService.importCatalog(categoryId, subCategoryId, file));
     }
 
     @Override
@@ -66,7 +82,7 @@ public class SuperAdminControllerImpl implements SuperAdminController {
         return ResponseEntity.status(HttpStatus.CREATED).body(superAdminService.addProductToShop(request));
     }
 
-    // ── ADMIN ONBOARDING ─────────────────────────────────────────────────────
+    // ── ADMIN ONBOARDING ──────────────────────────────────────────────────────
 
     @Override
     public ResponseEntity<List<AdminProfileResponse>> getAllAdmins() {
@@ -80,8 +96,7 @@ public class SuperAdminControllerImpl implements SuperAdminController {
 
     @Override
     public ResponseEntity<SuperAdminActionResponse> onboardAdmin(OnboardAdminRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-            .body(superAdminService.onboardAdmin(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(superAdminService.onboardAdmin(request));
     }
 
     @Override

@@ -21,8 +21,10 @@ public class CustomerProductResponse {
     private Integer stockQuantity;
     private String imageUrl;
     private String shortDescription;
-    private String categoryName;
+    private Long subCategoryId;
+    private String subCategoryName;
     private Long categoryId;
+    private String categoryName;
     private boolean hasVariants;
     private List<CustomerVariantResponse> variants;
     private Long shopId;

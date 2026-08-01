@@ -62,9 +62,13 @@ public class PaymentTransfer {
     @Column(name = "amount", nullable = false)
     private Double amount;
 
-    // Platform commission deducted (optional — 0 if no commission)
+    // Platform commission deducted from customer side (e.g. 2.5%)
     @Column(name = "platform_commission", nullable = false)
     private Double platformCommission = 0.0;
+
+    // Shop commission deducted from shop payout based on category (e.g. Grocery 3%)
+    @Column(name = "shop_commission", nullable = false)
+    private Double shopCommission = 0.0;
 
     // ─── STATUS ──────────────────────────────────────────────────────────────
 

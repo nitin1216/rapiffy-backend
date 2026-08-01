@@ -56,17 +56,23 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
     public CustomerAddressResponse addAddress(Long userId, SaveAddressRequest request) {
         User user = getUser(userId);
 
-        // If this is the first address or marked as default → clear existing defaults
-        boolean isFirst = addressRepository.findByCustomer(user).isEmpty();
-        if (request.isDefault() || isFirst) {
+        List<CustomerAddress> existing = addressRepository.findByCustomer(user);
+        boolean isFirst = existing.isEmpty();
+        boolean shouldBeDefault = request.isDefault() || isFirst;
+
+        // Clear existing default before saving new one
+        if (shouldBeDefault) {
             addressRepository.clearDefaultForCustomer(user);
+            addressRepository.flush();
         }
 
         CustomerAddress address = new CustomerAddress();
         address.setCustomer(user);
         address.setLabel(request.getLabel());
+        address.setReceiverName(request.getReceiverName());
+        address.setReceiverPhone(request.getReceiverPhone());
         address.setAddress(buildCAddress(request));
-        address.setDefault(request.isDefault() || isFirst);
+        address.setDefault(shouldBeDefault);
         return toAddressResponse(addressRepository.save(address));
     }
 
@@ -77,10 +83,13 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
         CustomerAddress address = getAddress(addressId, user);
 
         address.setLabel(request.getLabel());
+        address.setReceiverName(request.getReceiverName());
+        address.setReceiverPhone(request.getReceiverPhone());
         address.setAddress(buildCAddress(request));
 
         if (request.isDefault()) {
             addressRepository.clearDefaultForCustomer(user);
+            addressRepository.flush();
             address.setDefault(true);
         }
 
@@ -168,6 +177,8 @@ public class CustomerProfileServiceImpl implements CustomerProfileService {
         CustomerAddressResponse r = new CustomerAddressResponse();
         r.setAddressId(a.getId());
         r.setLabel(a.getLabel());
+        r.setReceiverName(a.getReceiverName());
+        r.setReceiverPhone(a.getReceiverPhone());
         r.setDefault(a.isDefault());
         if (a.getAddress() != null) {
             r.setAddressLine1(a.getAddress().getAddressLine1());

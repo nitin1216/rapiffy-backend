@@ -29,6 +29,13 @@ public class CustomerAddress {
     @Column(name = "label", length = 50)
     private String label;
 
+    // Person receiving the order at this address (optional — defaults to account holder)
+    @Column(name = "receiver_name")
+    private String receiverName;
+
+    @Column(name = "receiver_phone", length = 20)
+    private String receiverPhone;
+
     @Embedded
     private CAddress address;
 

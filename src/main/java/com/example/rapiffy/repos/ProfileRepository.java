@@ -16,4 +16,7 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
 
     @Query("SELECT p FROM Profile p WHERE p.user.role = :role")
     List<Profile> findAllByUserRole(Roles role);
+
+    @Query("SELECT p FROM Profile p JOIN p.shopCategories c WHERE c.id = :categoryId")
+    List<Profile> findAllByShopCategoryId(Long categoryId);
 }

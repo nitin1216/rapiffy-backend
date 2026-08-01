@@ -7,6 +7,8 @@ public class CustomerAddressResponse {
 
     private Long addressId;
     private String label;
+    private String receiverName;
+    private String receiverPhone;
     private String addressLine1;
     private String city;
     private String state;

@@ -6,6 +6,7 @@ import lombok.Data;
 public class AddProductToShopRequest {
 
     private String adminPhone;
-    private Long masterProductId;
     private Long categoryId;
+    private Long subCategoryId;
+    private Long masterProductId;
 }

@@ -1,6 +1,6 @@
 package com.example.rapiffy.services.customer;
 
-import com.example.rapiffy.dto.customer.CustomerProductResponse;
+import com.example.rapiffy.dto.customer.CustomerCatalogResponse;
 import com.example.rapiffy.dto.customer.NearbyShopResponse;
 
 import java.util.List;
@@ -9,7 +9,9 @@ public interface CustomerShopService {
 
     List<NearbyShopResponse> getNearbyShops(double lat, double lng);
 
-    List<CustomerProductResponse> getShopProducts(Long shopId, Long categoryId);
+    // Tree: Category → SubCategory → Products for a specific shop
+    List<CustomerCatalogResponse> getShopCatalog(Long shopId);
 
-    List<CustomerProductResponse> getAggregatedProducts(double lat, double lng, Long categoryId);
+    // Tree: Category → SubCategory → Products aggregated from all nearby shops
+    List<CustomerCatalogResponse> getAggregatedCatalog(double lat, double lng);
 }

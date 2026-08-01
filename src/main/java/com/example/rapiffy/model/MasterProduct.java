@@ -5,6 +5,8 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+// SubCategory import added — category is now derived via subCategory.getCategory()
+
 /**
  * MasterProduct is the GLOBAL product catalog managed by SuperAdmin.
  *
@@ -33,7 +35,12 @@ public class MasterProduct {
     @Column(name = "product_name", nullable = false)
     private String productName;
 
-    // Which category this product belongs to
+    // Which subCategory this product belongs to
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sub_category_id", nullable = false)
+    private SubCategory subCategory;
+
+    // Redundant category reference — kept to satisfy DB column, always derived from subCategory
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
@@ -85,5 +92,15 @@ public class MasterProduct {
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+        if (this.category == null && this.subCategory != null) {
+            this.category = this.subCategory.getCategory();
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        if (this.subCategory != null) {
+            this.category = this.subCategory.getCategory();
+        }
     }
 }

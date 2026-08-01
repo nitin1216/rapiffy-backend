@@ -118,10 +118,11 @@ public class ShopProduct {
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
 
-    // Category for unlisted products (catalog products inherit from MasterProduct)
+    // SubCategory — set for both catalog and unlisted products
+    // Category is derived via subCategory.getCategory()
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id")
-    private Category category;
+    @JoinColumn(name = "sub_category_id")
+    private SubCategory subCategory;
 
     private String gstSlab;
 

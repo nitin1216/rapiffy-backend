@@ -10,6 +10,10 @@ public class SaveAddressRequest {
     @NotBlank(message = "Label is required")
     private String label;
 
+    // Optional receiver details — for when someone else picks up the order
+    private String receiverName;
+    private String receiverPhone;
+
     @NotBlank(message = "Address line is required")
     private String addressLine1;
 

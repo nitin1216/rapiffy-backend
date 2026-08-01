@@ -1,7 +1,6 @@
 package com.example.rapiffy.dto.superadmin;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.example.rapiffy.enums.CategoryType;
 import com.example.rapiffy.model.MasterProduct;
 import com.example.rapiffy.model.MasterProductVariant;
 import lombok.Data;
@@ -16,8 +15,10 @@ public class MasterProductResponse {
     private Long id;
     private String productCode;
     private String productName;
+    private Long subCategoryId;
+    private String subCategoryName;
     private Long categoryId;
-    private CategoryType categoryType;
+    private String categoryName;
     private String brand;
     private String unit;
     private String unitValue;
@@ -36,8 +37,10 @@ public class MasterProductResponse {
         r.setId(mp.getId());
         r.setProductCode(mp.getProductCode());
         r.setProductName(mp.getProductName());
-        r.setCategoryId(mp.getCategory().getId());
-        r.setCategoryType(mp.getCategory().getCategoryType());
+        r.setSubCategoryId(mp.getSubCategory().getId());
+        r.setSubCategoryName(mp.getSubCategory().getName());
+        r.setCategoryId(mp.getSubCategory().getCategory().getId());
+        r.setCategoryName(mp.getSubCategory().getCategory().getCategoryName());
         r.setBrand(mp.getBrand());
         r.setUnit(mp.getUnit());
         r.setUnitValue(mp.getUnitValue());

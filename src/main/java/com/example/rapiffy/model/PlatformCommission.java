@@ -39,9 +39,14 @@ public class PlatformCommission {
     @JoinColumn(name = "category_id", nullable = false, unique = true)
     private Category category;
 
-    // Commission rate for this category (e.g. 3.0 = 3%)
+    // Customer-side commission rate (e.g. 2.5 = 2.5%) — deducted from order total
     @Column(name = "commission_rate", nullable = false)
     private Double commissionRate;
+
+    // Shop-side commission rate per category (e.g. 3.0 = 3% for Grocery)
+    // Deducted from shop payout on every order
+    @Column(name = "shop_commission_rate", nullable = false)
+    private Double shopCommissionRate = 0.0;
 
     // Optional note (e.g. "Low rate for essential goods")
     @Column(name = "notes")

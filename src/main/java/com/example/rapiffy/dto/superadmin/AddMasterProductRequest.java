@@ -8,6 +8,7 @@ import java.util.List;
 public class AddMasterProductRequest {
 
     private Long categoryId;
+    private Long subCategoryId;
     private String productCode;
     private String productName;
     private String brand;

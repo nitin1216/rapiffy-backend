@@ -7,9 +7,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
-/**
- * Service interface for SuperAdmin operations.
- */
 public interface SuperAdminService {
 
     // Category management
@@ -17,11 +14,16 @@ public interface SuperAdminService {
     List<Category> getAllCategories();
     SuperAdminActionResponse deactivateCategory(Long categoryId);
 
+    // SubCategory management
+    SuperAdminActionResponse createSubCategory(CreateSubCategoryRequest request);
+    List<SubCategoryResponse> getSubCategories(Long categoryId);
+    SuperAdminActionResponse deactivateSubCategory(Long subCategoryId);
+
     // Master product catalog
     SuperAdminActionResponse addMasterProduct(AddMasterProductRequest request);
-    CsvImportResponse importCatalog(Long categoryId, MultipartFile file);
+    CsvImportResponse importCatalog(Long categoryId, Long subCategoryId, MultipartFile file);
     SuperAdminActionResponse updateMasterProduct(Long masterProductId, UpdateMasterProductRequest request);
-    List<MasterProductResponse> getAllMasterProducts(Long categoryId);
+    List<MasterProductResponse> getAllMasterProducts();
     SuperAdminActionResponse addProductToShop(AddProductToShopRequest request);
 
     // Admin management

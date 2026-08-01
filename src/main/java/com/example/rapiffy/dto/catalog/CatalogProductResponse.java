@@ -19,6 +19,9 @@ public class CatalogProductResponse {
     private Double mrp;
     private String imageUrl;
     private String shortDescription;
+    private Long subCategoryId;
+    private String subCategoryName;
+    private Long categoryId;
     private String categoryName;
 
     // Shop-specific (null if Admin hasn't activated this product)

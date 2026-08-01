@@ -36,27 +36,40 @@ public interface SuperAdminController {
     @PutMapping("/category/deactivate/{categoryId}")
     ResponseEntity<SuperAdminActionResponse> deactivateCategory(@PathVariable Long categoryId);
 
+    // ── SUBCATEGORY MANAGEMENT ────────────────────────────────────────────────
+
+    @Operation(summary = "Create a new subCategory under a category")
+    @PostMapping("/sub-category")
+    ResponseEntity<SuperAdminActionResponse> createSubCategory(@RequestBody CreateSubCategoryRequest request);
+
+    @Operation(summary = "Get all subCategories, optionally filter by categoryId")
+    @GetMapping("/sub-categories")
+    ResponseEntity<List<SubCategoryResponse>> getSubCategories(@RequestParam(required = false) Long categoryId);
+
+    @Operation(summary = "Deactivate a subCategory")
+    @PutMapping("/sub-category/deactivate/{subCategoryId}")
+    ResponseEntity<SuperAdminActionResponse> deactivateSubCategory(@PathVariable Long subCategoryId);
+
     // ── MASTER PRODUCT CATALOG ───────────────────────────────────────────────
 
     @Operation(summary = "Add a single master product")
     @PostMapping("/catalog/product")
     ResponseEntity<SuperAdminActionResponse> addMasterProduct(@RequestBody AddMasterProductRequest request);
 
-    @Operation(summary = "Get all master products", description = "Pass categoryId to filter by category, or omit for all.")
+    @Operation(summary = "Get all master products")
     @GetMapping("/catalog/products")
-    ResponseEntity<List<MasterProductResponse>> getAllMasterProducts(
-        @RequestParam(required = false) Long categoryId
-    );
+    ResponseEntity<List<MasterProductResponse>> getAllMasterProducts();
 
     @Operation(
-        summary = "Import products via CSV into a category",
+        summary = "Import products via CSV into a subCategory",
         description = "CSV columns: productCode, productName, brand, unit, unitValue, mrp, "
-            + "shortDescription, longDescription, attributes (JSON). "
+            + "shortDescription, longDescription. "
             + "Duplicate productCodes are skipped."
     )
-    @PostMapping(value = "/catalog/import/{categoryId}", consumes = "multipart/form-data")
+    @PostMapping(value = "/catalog/import/{categoryId}/{subCategoryId}", consumes = "multipart/form-data")
     ResponseEntity<CsvImportResponse> importCatalog(
         @PathVariable Long categoryId,
+        @PathVariable Long subCategoryId,
         @RequestParam("file") MultipartFile file
     );
 

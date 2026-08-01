@@ -1,6 +1,6 @@
 package com.example.rapiffy.repos;
 
-import com.example.rapiffy.model.Category;
+import com.example.rapiffy.model.SubCategory;
 import com.example.rapiffy.model.MasterProduct;
 import com.example.rapiffy.model.Profile;
 import com.example.rapiffy.model.ShopProduct;
@@ -13,18 +13,15 @@ import java.util.Optional;
 @Repository
 public interface ShopProductRepository extends JpaRepository<ShopProduct, Long> {
 
-    // Get all products for a specific shop
     List<ShopProduct> findByShop(Profile shop);
 
-    // Check if Admin already activated a specific MasterProduct
     Optional<ShopProduct> findByShopAndMasterProduct(Profile shop, MasterProduct masterProduct);
 
-    // Find a shop product by id and shop (ensures Admin can only access their own products)
     Optional<ShopProduct> findByIdAndShop(Long id, Profile shop);
 
-    List<ShopProduct> findByShopAndCategory(Profile shop, Category category);
+    List<ShopProduct> findByShopAndSubCategory(Profile shop, SubCategory subCategory);
 
     List<ShopProduct> findByShopIdAndIsActive(Long shopId, boolean isActive);
 
-    List<ShopProduct> findByShopIdAndCategoryIdAndIsActive(Long shopId, Long categoryId, boolean isActive);
+    List<ShopProduct> findByShopIdAndSubCategoryIdAndIsActive(Long shopId, Long subCategoryId, boolean isActive);
 }

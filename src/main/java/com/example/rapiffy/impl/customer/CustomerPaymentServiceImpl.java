@@ -238,19 +238,21 @@ public class CustomerPaymentServiceImpl implements CustomerPaymentService {
                 continue;
             }
 
-            // Calculate commission per-item based on category
-            double totalCommission = 0.0;
+            // Calculate both commissions per-item based on category
+            double totalCustomerCommission = 0.0;
+            double totalShopCommission = 0.0;
             for (com.example.rapiffy.model.OrderItem item : subOrder.getItems()) {
-                Category category = (item.getShopProduct() != null)
-                        ? item.getShopProduct().getCategory() : null;
-                double rate = getCommissionRateForCategory(category);
-                double itemCommission = item.getLineTotal() * (rate / 100);
-                totalCommission += itemCommission;
+                Category category = (item.getShopProduct() != null && item.getShopProduct().getSubCategory() != null)
+                        ? item.getShopProduct().getSubCategory().getCategory() : null;
+                double[] rates = getCommissionRatesForCategory(category);
+                totalCustomerCommission += item.getLineTotal() * (rates[0] / 100);
+                totalShopCommission += item.getLineTotal() * (rates[1] / 100);
             }
 
             Double subOrderAmount = subOrder.getTotalAmount();
-            Double commission = Math.round(totalCommission * 100.0) / 100.0;
-            Double transferAmount = Math.round((subOrderAmount - commission) * 100.0) / 100.0;
+            Double customerCommission = Math.round(totalCustomerCommission * 100.0) / 100.0;
+            Double shopCommission = Math.round(totalShopCommission * 100.0) / 100.0;
+            Double transferAmount = Math.round((subOrderAmount - customerCommission - shopCommission) * 100.0) / 100.0;
 
             try {
                 // Call Razorpay API to create transfer
@@ -281,13 +283,14 @@ public class CustomerPaymentServiceImpl implements CustomerPaymentService {
                 transfer.setRazorpayLinkedAccountId(linkedAccountId);
                 transfer.setRazorpayTransferId(razorpayTransferId);
                 transfer.setAmount(transferAmount);
-                transfer.setPlatformCommission(commission);
+                transfer.setPlatformCommission(customerCommission);
+                transfer.setShopCommission(shopCommission);
                 transfer.setStatus(TransferStatus.CREATED);
                 transfer.setTransferredAt(LocalDateTime.now());
                 paymentTransferRepository.save(transfer);
 
-                log.info("Transfer created: ₹{} to {} (commission ₹{})",
-                        transferAmount, shop.getShopName(), commission);
+                log.info("Transfer created: ₹{} to {} (customer commission ₹{}, shop commission ₹{})",
+                        transferAmount, shop.getShopName(), customerCommission, shopCommission);
 
             } catch (RazorpayException e) {
                 log.error("Transfer failed for shop {}: {}", shop.getShopName(), e.getMessage());
@@ -298,7 +301,8 @@ public class CustomerPaymentServiceImpl implements CustomerPaymentService {
                 transfer.setShop(shop);
                 transfer.setRazorpayLinkedAccountId(linkedAccountId);
                 transfer.setAmount(transferAmount);
-                transfer.setPlatformCommission(commission);
+                transfer.setPlatformCommission(customerCommission);
+                transfer.setShopCommission(shopCommission);
                 transfer.setStatus(TransferStatus.FAILED);
                 paymentTransferRepository.save(transfer);
             }
@@ -404,28 +408,25 @@ public class CustomerPaymentServiceImpl implements CustomerPaymentService {
     }
 
     /**
-     * Get commission rate for a specific category.
-     * Looks up PlatformCommission table by category.
-     * Falls back to PlatformConfig.defaultCommissionRate if no entry exists.
-     *
-     * Example:
-     *   Grocery → 3% (from platform_commissions table)
-     *   Fashion → 10%
-     *   Unknown category → 5% (from platform_config default)
+     * Returns [customerCommissionRate, shopCommissionRate] for a category.
+     * Falls back to defaultCommissionRate for customer side, 0 for shop side if no entry.
      */
-    private Double getCommissionRateForCategory(Category category) {
+    private double[] getCommissionRatesForCategory(Category category) {
         if (category != null) {
-            Optional<PlatformCommission> catCommission =
+            Optional<PlatformCommission> entry =
                     platformCommissionRepository.findByCategoryAndIsActiveTrue(category);
-            if (catCommission.isPresent()) {
-                return catCommission.get().getCommissionRate();
+            if (entry.isPresent()) {
+                return new double[]{
+                    entry.get().getCommissionRate(),
+                    entry.get().getShopCommissionRate()
+                };
             }
         }
-        // Fallback: use global default
-        return platformConfigRepository.findAll().stream()
+        double defaultRate = platformConfigRepository.findAll().stream()
                 .findFirst()
                 .map(PlatformConfig::getDefaultCommissionRate)
-                .orElse(5.0); // ultimate fallback: 5%
+                .orElse(5.0);
+        return new double[]{ defaultRate, 0.0 };
     }
 
     /**

@@ -12,8 +12,8 @@ import java.util.List;
 @Data
 public class AddUnlistedProductRequest {
 
-    // Which category this product belongs to (must be one of Admin's shopCategories)
-    private Long categoryId;
+    // Which subCategory this product belongs to (must be under one of Admin's shopCategories)
+    private Long subCategoryId;
 
     // Required fields
     private String productName;

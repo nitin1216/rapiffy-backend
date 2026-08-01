@@ -9,7 +9,7 @@ import java.util.List;
 public class ShopProductResponse {
 
     private Long shopProductId;
-    private Long masterProductId; // null = unlisted
+    private Long masterProductId;
     private String productName;
     private String brand;
     private String unit;
@@ -20,12 +20,9 @@ public class ShopProductResponse {
     private Integer thresholdQuantity;
     private String imageUrl;
     private String shortDescription;
-    private String categoryName;
     private LocalDate expiryDate;
     private boolean hasVariants;
     private boolean isActive;
-    private boolean unlisted; // true if masterProduct is null
-
-    // Variants list — populated only when hasVariants = true
+    private boolean unlisted;
     private List<VariantResponse> variants;
 }

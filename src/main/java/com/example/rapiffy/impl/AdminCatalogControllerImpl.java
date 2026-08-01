@@ -26,60 +26,36 @@ public class AdminCatalogControllerImpl implements AdminCatalogController {
     }
 
     @Override
-    public ResponseEntity<List<CatalogProductResponse>> getCatalog() {
-        Long userId = getCurrentUserId();
-        return ResponseEntity.ok(catalogService.getCatalog(userId));
+    public ResponseEntity<List<CategoryProductsResponse>> getMyProducts() {
+        return ResponseEntity.ok(catalogService.getMyProducts(getCurrentUserId()));
     }
 
     @Override
-    public ResponseEntity<CatalogActionResponse> activateProduct(ActivateProductRequest request) {
-        Long userId = getCurrentUserId();
-        return ResponseEntity.status(HttpStatus.CREATED)
-            .body(catalogService.activateProduct(userId, request));
+    public ResponseEntity<CategoryProductsResponse> getMyProductsBySubCategory(Long subCategoryId) {
+        return ResponseEntity.ok(catalogService.getMyProductsBySubCategory(getCurrentUserId(), subCategoryId));
     }
 
     @Override
     public ResponseEntity<CatalogActionResponse> updateProduct(Long shopProductId, UpdateProductRequest request) {
-        Long userId = getCurrentUserId();
-        return ResponseEntity.ok(catalogService.updateProduct(userId, shopProductId, request));
+        return ResponseEntity.ok(catalogService.updateProduct(getCurrentUserId(), shopProductId, request));
     }
 
     @Override
     public ResponseEntity<CatalogActionResponse> setProductVisibility(Long shopProductId, boolean active) {
-        Long userId = getCurrentUserId();
-        return ResponseEntity.ok(catalogService.setProductVisibility(userId, shopProductId, active));
+        return ResponseEntity.ok(catalogService.setProductVisibility(getCurrentUserId(), shopProductId, active));
     }
 
     @Override
     public ResponseEntity<CatalogActionResponse> addUnlistedProduct(AddUnlistedProductRequest request) {
-        Long userId = getCurrentUserId();
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(catalogService.addUnlistedProduct(userId, request));
+            .body(catalogService.addUnlistedProduct(getCurrentUserId(), request));
     }
-
-    @Override
-    public ResponseEntity<List<CategoryProductsResponse>> getMyProducts() {
-        Long userId = getCurrentUserId();
-        return ResponseEntity.ok(catalogService.getMyProducts(userId));
-    }
-
-    @Override
-    public ResponseEntity<CategoryProductsResponse> getMyProductsByCategory(Long categoryId) {
-        Long userId = getCurrentUserId();
-        return ResponseEntity.ok(catalogService.getMyProductsByCategory(userId, categoryId));
-    }
-
-    // ── HELPER: Extract current logged-in user's ID from JWT/SecurityContext ─
 
     private Long getCurrentUserId() {
-        // SecurityContext principal = identifier (phone or email) set by JwtAuthFilter
         String identifier = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        // Find user by phone or email
         User user = userRepository.findByPhoneNumber(identifier)
             .or(() -> userRepository.findByEmail(identifier))
             .orElseThrow(() -> new ApiException("User not found", HttpStatus.UNAUTHORIZED));
-
         return user.getId();
     }
 }

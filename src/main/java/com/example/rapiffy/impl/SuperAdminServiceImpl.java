@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 public class SuperAdminServiceImpl implements SuperAdminService {
 
     private final CategoryRepository categoryRepository;
+    private final SubCategoryRepository subCategoryRepository;
     private final MasterProductRepository masterProductRepository;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
@@ -33,16 +34,59 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     private final BCryptPasswordEncoder passwordEncoder;
 
     public SuperAdminServiceImpl(CategoryRepository categoryRepository,
+                                 SubCategoryRepository subCategoryRepository,
                                  MasterProductRepository masterProductRepository,
                                  UserRepository userRepository,
                                  ProfileRepository profileRepository,
                                  ShopProductRepository shopProductRepository) {
         this.categoryRepository = categoryRepository;
+        this.subCategoryRepository = subCategoryRepository;
         this.masterProductRepository = masterProductRepository;
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.shopProductRepository = shopProductRepository;
         this.passwordEncoder = new BCryptPasswordEncoder();
+    }
+
+    // ── SUBCATEGORY MANAGEMENT ────────────────────────────────────────────────
+
+    @Override
+    public SuperAdminActionResponse createSubCategory(CreateSubCategoryRequest request) {
+        Category category = categoryRepository.findById(request.getCategoryId())
+            .orElseThrow(() -> new ApiException("Category not found", HttpStatus.NOT_FOUND));
+
+        if (subCategoryRepository.existsByNameAndCategory(request.getName(), category)) {
+            throw new ApiException("SubCategory '" + request.getName() + "' already exists under this category", HttpStatus.CONFLICT);
+        }
+
+        SubCategory subCategory = new SubCategory();
+        subCategory.setName(request.getName());
+        subCategory.setImageUrl(request.getImageUrl());
+        subCategory.setDescription(request.getDescription());
+        subCategory.setCategory(category);
+        subCategory.setActive(true);
+
+        subCategoryRepository.save(subCategory);
+        return new SuperAdminActionResponse("SubCategory '" + request.getName() + "' created under '" + category.getCategoryName() + "'");
+    }
+
+    @Override
+    public List<SubCategoryResponse> getSubCategories(Long categoryId) {
+        List<SubCategory> list = categoryId != null
+            ? subCategoryRepository.findByCategory(
+                categoryRepository.findById(categoryId)
+                    .orElseThrow(() -> new ApiException("Category not found", HttpStatus.NOT_FOUND)))
+            : subCategoryRepository.findAll();
+        return list.stream().map(SubCategoryResponse::from).collect(Collectors.toList());
+    }
+
+    @Override
+    public SuperAdminActionResponse deactivateSubCategory(Long subCategoryId) {
+        SubCategory subCategory = subCategoryRepository.findById(subCategoryId)
+            .orElseThrow(() -> new ApiException("SubCategory not found", HttpStatus.NOT_FOUND));
+        subCategory.setActive(false);
+        subCategoryRepository.save(subCategory);
+        return new SuperAdminActionResponse("SubCategory '" + subCategory.getName() + "' deactivated");
     }
 
     // ── CATEGORY MANAGEMENT ──────────────────────────────────────────────────
@@ -78,13 +122,18 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     public SuperAdminActionResponse addMasterProduct(AddMasterProductRequest request) {
         Category category = categoryRepository.findById(request.getCategoryId())
             .orElseThrow(() -> new ApiException("Category not found", HttpStatus.NOT_FOUND));
+        SubCategory subCategory = subCategoryRepository.findById(request.getSubCategoryId())
+            .orElseThrow(() -> new ApiException("SubCategory not found", HttpStatus.NOT_FOUND));
+        if (!subCategory.getCategory().getId().equals(category.getId())) {
+            throw new ApiException("SubCategory does not belong to the given Category", HttpStatus.BAD_REQUEST);
+        }
 
         if (masterProductRepository.existsByProductCode(request.getProductCode())) {
             throw new ApiException("Product code '" + request.getProductCode() + "' already exists", HttpStatus.CONFLICT);
         }
 
         MasterProduct mp = new MasterProduct();
-        mp.setCategory(category);
+        mp.setSubCategory(subCategory);
         mp.setProductCode(request.getProductCode());
         mp.setProductName(request.getProductName());
         mp.setBrand(request.getBrand());
@@ -103,17 +152,14 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         }
 
         masterProductRepository.save(mp);
+        pushToMatchingShops(List.of(mp), subCategory);
         return new SuperAdminActionResponse("Master product '" + mp.getProductName() + "' added successfully");
     }
 
     @Override
-    public List<MasterProductResponse> getAllMasterProducts(Long categoryId) {
-        List<MasterProduct> products = categoryId != null
-            ? masterProductRepository.findByCategory(
-                categoryRepository.findById(categoryId)
-                    .orElseThrow(() -> new ApiException("Category not found", HttpStatus.NOT_FOUND)))
-            : masterProductRepository.findAll();
-        return products.stream().map(MasterProductResponse::from).collect(Collectors.toList());
+    public List<MasterProductResponse> getAllMasterProducts() {
+        return masterProductRepository.findAll()
+            .stream().map(MasterProductResponse::from).collect(Collectors.toList());
     }
 
     // ── CSV IMPORT ───────────────────────────────────────────────────────────
@@ -130,9 +176,14 @@ public class SuperAdminServiceImpl implements SuperAdminService {
      * - Empty/invalid rows are skipped
      */
     @Override
-    public CsvImportResponse importCatalog(Long categoryId, MultipartFile file) {
+    public CsvImportResponse importCatalog(Long categoryId, Long subCategoryId, MultipartFile file) {
         Category category = categoryRepository.findById(categoryId)
             .orElseThrow(() -> new ApiException("Category not found", HttpStatus.NOT_FOUND));
+        SubCategory subCategory = subCategoryRepository.findById(subCategoryId)
+            .orElseThrow(() -> new ApiException("SubCategory not found", HttpStatus.NOT_FOUND));
+        if (!subCategory.getCategory().getId().equals(category.getId())) {
+            throw new ApiException("SubCategory does not belong to the given Category", HttpStatus.BAD_REQUEST);
+        }
 
         List<MasterProduct> productsToSave = new ArrayList<>();
         int totalRows = 0;
@@ -143,24 +194,17 @@ public class SuperAdminServiceImpl implements SuperAdminService {
             boolean isHeader = true;
 
             while ((line = reader.readLine()) != null) {
-                // Skip header row
-                if (isHeader) {
-                    isHeader = false;
-                    continue;
-                }
+                if (isHeader) { isHeader = false; continue; }
 
                 totalRows++;
                 String[] columns = parseCsvLine(line);
 
-                // Validate minimum columns (at least productCode and productName)
                 if (columns.length < 2 || columns[0].isBlank() || columns[1].isBlank()) {
                     skipped++;
                     continue;
                 }
 
                 String productCode = columns[0].trim();
-
-                // Skip if productCode already exists
                 if (masterProductRepository.existsByProductCode(productCode)) {
                     skipped++;
                     continue;
@@ -169,7 +213,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                 MasterProduct product = new MasterProduct();
                 product.setProductCode(productCode);
                 product.setProductName(columns[1].trim());
-                product.setCategory(category);
+                product.setSubCategory(subCategory);
                 product.setBrand(getColumn(columns, 2));
                 product.setUnit(getColumn(columns, 3));
                 product.setUnitValue(getColumn(columns, 4));
@@ -184,15 +228,13 @@ public class SuperAdminServiceImpl implements SuperAdminService {
             throw new ApiException("Failed to parse CSV: " + e.getMessage(), HttpStatus.BAD_REQUEST);
         }
 
-        // Bulk save
         masterProductRepository.saveAll(productsToSave);
+        pushToMatchingShops(productsToSave, subCategory);
 
         int imported = productsToSave.size();
         return new CsvImportResponse(
-            totalRows,
-            imported,
-            skipped,
-            "Imported " + imported + " products into '" + category.getCategoryName() + "'"
+            totalRows, imported, skipped,
+            "Imported " + imported + " products into '" + subCategory.getName() + "'"
         );
     }
 
@@ -231,44 +273,50 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         User user = userRepository.findByPhoneNumber(request.getAdminPhone())
             .orElseThrow(() -> new ApiException("Admin not found with phone: " + request.getAdminPhone(), HttpStatus.NOT_FOUND));
 
-        if (user.getRole() != Roles.ADMIN) {
+        if (user.getRole() != Roles.ADMIN)
             throw new ApiException("User is not an Admin", HttpStatus.BAD_REQUEST);
-        }
 
         Profile profile = profileRepository.findByUserId(user.getId())
             .orElseThrow(() -> new ApiException("Profile not found", HttpStatus.NOT_FOUND));
 
-        MasterProduct mp = masterProductRepository.findById(request.getMasterProductId())
-            .orElseThrow(() -> new ApiException("Master product not found", HttpStatus.NOT_FOUND));
-
         Category category = categoryRepository.findById(request.getCategoryId())
             .orElseThrow(() -> new ApiException("Category not found", HttpStatus.NOT_FOUND));
 
+        SubCategory subCategory = subCategoryRepository.findById(request.getSubCategoryId())
+            .orElseThrow(() -> new ApiException("SubCategory not found", HttpStatus.NOT_FOUND));
+
+        if (!subCategory.getCategory().getId().equals(category.getId()))
+            throw new ApiException("SubCategory does not belong to the given Category", HttpStatus.BAD_REQUEST);
+
+        MasterProduct mp = masterProductRepository.findById(request.getMasterProductId())
+            .orElseThrow(() -> new ApiException("Master product not found", HttpStatus.NOT_FOUND));
+
+        if (!mp.getSubCategory().getId().equals(subCategory.getId()))
+            throw new ApiException("Product does not belong to the given SubCategory", HttpStatus.BAD_REQUEST);
+
         boolean categoryBelongsToShop = profile.getShopCategories().stream()
             .anyMatch(c -> c.getId().equals(category.getId()));
-        if (!categoryBelongsToShop) {
+        if (!categoryBelongsToShop)
             throw new ApiException("Category '" + category.getCategoryName() + "' is not assigned to this shop", HttpStatus.BAD_REQUEST);
-        }
 
-        if (shopProductRepository.findByShopAndMasterProduct(profile, mp).isPresent()) {
+        if (shopProductRepository.findByShopAndMasterProduct(profile, mp).isPresent())
             throw new ApiException("Product already exists in this shop", HttpStatus.CONFLICT);
-        }
 
         ShopProduct sp = new ShopProduct();
         sp.setShop(profile);
         sp.setMasterProduct(mp);
-        sp.setCategory(category);
+        sp.setSubCategory(subCategory);
         sp.setProductName(mp.getProductName());
-        sp.setShortDescription(mp.getShortDescription());
-        sp.setLongDescription(mp.getLongDescription());
         sp.setBrand(mp.getBrand());
         sp.setUnit(mp.getUnit());
         sp.setUnitValue(mp.getUnitValue());
         sp.setMrp(mp.getMrp());
         sp.setImageUrl(mp.getImageUrl());
+        sp.setShortDescription(mp.getShortDescription());
+        sp.setLongDescription(mp.getLongDescription());
+        sp.setHasVariants(mp.isHasVariants());
         sp.setSellingPrice(0.0);
         sp.setStockQuantity(0);
-        sp.setHasVariants(mp.isHasVariants());
         sp.setActive(true);
 
         shopProductRepository.save(sp);
@@ -343,11 +391,15 @@ public class SuperAdminServiceImpl implements SuperAdminService {
 
         // Bulk-add all active MasterProducts for assigned categories as ShopProducts
         if (request.isAddAllProducts()) {
-            List<MasterProduct> masterProducts = masterProductRepository.findByCategoryInAndIsActiveTrue(categories);
+            List<SubCategory> subCategories = subCategoryRepository.findAll().stream()
+                .filter(sc -> categories.stream().anyMatch(c -> c.getId().equals(sc.getCategory().getId())))
+                .collect(Collectors.toList());
+            List<MasterProduct> masterProducts = masterProductRepository.findBySubCategoryInAndIsActiveTrue(subCategories);
             List<ShopProduct> shopProducts = masterProducts.stream().map(mp -> {
                 ShopProduct sp = new ShopProduct();
                 sp.setShop(profile);
                 sp.setMasterProduct(mp);
+                sp.setSubCategory(mp.getSubCategory());
                 sp.setProductName(mp.getProductName());
                 sp.setShortDescription(mp.getShortDescription());
                 sp.setLongDescription(mp.getLongDescription());
@@ -516,6 +568,37 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         r.setSubscriptionStatus(profile.getSubscriptionStatus() != null
             ? profile.getSubscriptionStatus().name() : null);
         return r;
+    }
+
+    private void pushToMatchingShops(List<MasterProduct> products, SubCategory subCategory) {
+        Long categoryId = subCategory.getCategory().getId();
+        List<Profile> shops = profileRepository.findAllByShopCategoryId(categoryId);
+        if (shops.isEmpty()) return;
+
+        List<ShopProduct> toSave = new ArrayList<>();
+        for (Profile shop : shops) {
+            for (MasterProduct mp : products) {
+                if (shopProductRepository.findByShopAndMasterProduct(shop, mp).isPresent()) continue;
+                ShopProduct sp = new ShopProduct();
+                sp.setShop(shop);
+                sp.setMasterProduct(mp);
+                sp.setSubCategory(subCategory);
+                sp.setProductName(mp.getProductName());
+                sp.setBrand(mp.getBrand());
+                sp.setUnit(mp.getUnit());
+                sp.setUnitValue(mp.getUnitValue());
+                sp.setMrp(mp.getMrp());
+                sp.setImageUrl(mp.getImageUrl());
+                sp.setShortDescription(mp.getShortDescription());
+                sp.setLongDescription(mp.getLongDescription());
+                sp.setHasVariants(mp.isHasVariants());
+                sp.setSellingPrice(0.0);
+                sp.setStockQuantity(0);
+                sp.setActive(true);
+                toSave.add(sp);
+            }
+        }
+        shopProductRepository.saveAll(toSave);
     }
 
     private String maskLast(String value, int lastN) {
