@@ -115,10 +115,44 @@ public interface SuperAdminController {
         @RequestBody UpdateAdminProfileBySuperAdminRequest request
     );
 
-    @Operation(
-        summary = "Remove an Admin (shopkeeper)",
+    @Operation(summary = "Remove an Admin (shopkeeper)",
         description = "Deactivates Admin account and their shop. Products will no longer be visible to customers."
     )
     @DeleteMapping("/remove-admin/{adminUserId}")
     ResponseEntity<SuperAdminActionResponse> removeAdmin(@PathVariable Long adminUserId);
+
+    // ── RAZORPAY LINKING ─────────────────────────────────────────────────────
+
+    @Operation(summary = "Link a shop (Admin) with Razorpay",
+        description = "Creates a Razorpay linked account for the shop and saves the account ID. Call after onboarding or as a retry for existing shops."
+    )
+    @PostMapping("/razorpay/link-shop")
+    ResponseEntity<SuperAdminActionResponse> linkShopRazorpayAccount(@RequestBody LinkShopRazorpayRequest request);
+
+    // ── MASTER VARIANTS ───────────────────────────────────────────────────────
+
+    @Operation(
+        summary = "Add variants to a master product",
+        description = "Pass parentMasterProductId and a list of variants. Each variant is treated as a first-class product."
+    )
+    @PostMapping("/catalog/variants")
+    ResponseEntity<MasterVariantActionResponse> addMasterVariants(@RequestBody AddMasterVariantsRequest request);
+
+    @Operation(
+        summary = "Update a master variant",
+        description = "Update any field of a specific master variant. Only send fields you want to change."
+    )
+    @PutMapping("/catalog/variants/{variantId}")
+    ResponseEntity<SuperAdminActionResponse> updateMasterVariant(
+        @PathVariable Long variantId,
+        @RequestBody MasterVariantRequest request
+    );
+
+    @Operation(summary = "Get all variants for a master product")
+    @GetMapping("/catalog/{masterProductId}/variants")
+    ResponseEntity<MasterProductResponse> getMasterProductWithVariants(@PathVariable Long masterProductId);
+
+    @Operation(summary = "Delete a master variant by variantId")
+    @DeleteMapping("/catalog/variants/{variantId}")
+    ResponseEntity<SuperAdminActionResponse> deleteMasterVariant(@PathVariable Long variantId);
 }

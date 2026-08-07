@@ -4,19 +4,19 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * MasterProductVariant represents a default variant in the global catalog.
+ * MasterProductVariant is treated as a first-class product in the global catalog.
  *
- * SuperAdmin adds these when importing/managing MasterProducts.
- * When Admin activates a product, they can see these default variants
- * and choose which ones to sell (or add their own).
+ * SuperAdmin adds these variants separately under a MasterProduct.
+ * subCategory and category are inherited from the parent MasterProduct.
  *
- * Example: MasterProduct = "Cooking Oil" (hasVariants = true)
- *   Variant 1: Fortune Sunflower, 1L, MRP ₹180
- *   Variant 2: Fortune Sunflower, 5L, MRP ₹850
- *   Variant 3: Saffola Gold, 1L, MRP ₹210
+ * Example:
+ *   Parent MasterProduct = "Cooking Oil" (hasVariants = true)
+ *     Variant 1: Fortune Sunflower 1L  → parentMasterProductId = 10
+ *     Variant 2: Saffola Gold 2L       → parentMasterProductId = 10
  */
 @Entity
 @Table(name = "master_product_variants")
@@ -30,26 +30,49 @@ public class MasterProductVariant {
     // Parent MasterProduct this variant belongs to
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "master_product_id", nullable = false)
-    private MasterProduct masterProduct;
+    @JoinColumn(name = "parent_master_product_id", nullable = false)
+    private MasterProduct parentMasterProduct;
+
+    // ─── PRODUCT FIELDS (same as MasterProduct) ──────────────────────────────
 
     @Column(name = "variant_name")
-    private String variantName; // e.g. "Fortune Sunflower Oil 1L"
+    private String variantName;
 
     @Column(name = "brand")
     private String brand;
 
     @Column(name = "unit")
-    private String unit; // KG, ML, PCS, CM
+    private String unit;
 
     @Column(name = "unit_value")
-    private String unitValue; // 1, 5, 500
+    private String unitValue;
+
+    @Column(name = "short_description")
+    private String shortDescription;
+
+    @Column(name = "long_description", columnDefinition = "TEXT")
+    private String longDescription;
 
     @Column(name = "mrp")
     private Double mrp;
 
+    @Column(name = "selling_price")
+    private Double sellingPrice;
+
+    @Column(name = "stock_quantity")
+    private Integer stockQuantity;
+
+    @Column(name = "threshold_quantity")
+    private Integer thresholdQuantity;
+
     @Column(name = "image_url")
     private String imageUrl;
+
+    @Column(name = "expiry_date")
+    private LocalDate expiryDate;
+
+    @Column(name = "gst_slab")
+    private String gstSlab;
 
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
@@ -57,8 +80,17 @@ public class MasterProductVariant {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }

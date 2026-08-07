@@ -109,7 +109,7 @@ public class ShopProduct {
     private boolean hasVariants = false;
 
     // List of variants (only used when hasVariants = true)
-    @OneToMany(mappedBy = "shopProduct", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "parentShopProduct", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<ProductVariant> variants = new java.util.ArrayList<>();
 
     // ─── STATUS FLAGS ────────────────────────────────────────────────────────

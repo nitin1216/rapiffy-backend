@@ -2,22 +2,22 @@ package com.example.rapiffy.dto.superadmin;
 
 import lombok.Data;
 
-/**
- * DTO for a single variant in MasterProduct.
- * Used when SuperAdmin adds/updates variants on a catalog product.
- *
- * - Has "id" → update existing variant
- * - No "id" → add new variant
- * - Missing from list → variant gets removed
- */
+import java.time.LocalDate;
+
 @Data
 public class MasterVariantRequest {
 
-    private Long id;
     private String variantName;
     private String brand;
     private String unit;
     private String unitValue;
+    private String shortDescription;
+    private String longDescription;
     private Double mrp;
+    private Double sellingPrice;
+    private Integer stockQuantity;
+    private Integer thresholdQuantity;
     private String imageUrl;
+    private LocalDate expiryDate;
+    private String gstSlab;
 }

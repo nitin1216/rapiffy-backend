@@ -79,7 +79,7 @@ public class MasterProduct {
     private boolean hasVariants = false;
 
     // Default variants (only when hasVariants = true)
-    @OneToMany(mappedBy = "masterProduct", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "parentMasterProduct", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<MasterProductVariant> variants = new java.util.ArrayList<>();
 
     // SuperAdmin can deactivate a product globally

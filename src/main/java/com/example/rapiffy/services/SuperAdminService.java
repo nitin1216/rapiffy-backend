@@ -32,4 +32,15 @@ public interface SuperAdminService {
     SuperAdminActionResponse onboardAdmin(OnboardAdminRequest request);
     SuperAdminActionResponse removeAdmin(Long adminUserId);
     SuperAdminActionResponse updateAdminProfile(String phoneNumber, UpdateAdminProfileBySuperAdminRequest request);
+
+    // Razorpay linking
+    SuperAdminActionResponse linkShopRazorpayAccount(LinkShopRazorpayRequest request);
+
+    // Master variants
+    MasterProductResponse getMasterProductWithVariants(Long masterProductId);
+    MasterVariantActionResponse addMasterVariants(AddMasterVariantsRequest request);
+
+    SuperAdminActionResponse updateMasterVariant(Long variantId, MasterVariantRequest request);
+
+    SuperAdminActionResponse deleteMasterVariant(Long variantId);
 }

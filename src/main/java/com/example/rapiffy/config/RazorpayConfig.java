@@ -2,6 +2,7 @@ package com.example.rapiffy.config;
 
 import com.razorpay.RazorpayClient;
 import com.razorpay.RazorpayException;
+import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,6 +33,11 @@ public class RazorpayConfig {
     @Bean
     public RazorpayClient razorpayClient() throws RazorpayException {
         return new RazorpayClient(keyId, keySecret);
+    }
+
+    @Bean
+    public OkHttpClient okHttpClient() {
+        return new OkHttpClient();
     }
 
     public String getKeyId() {

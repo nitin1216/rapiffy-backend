@@ -33,6 +33,12 @@ public class PlatformConfig {
     @Column(name = "default_commission_rate", nullable = false)
     private Double defaultCommissionRate = 5.0;
 
+    // Razorpay linked account ID for the platform commission account
+    // All customerCommission + shopCommission gets routed here automatically
+    // Set once by SuperAdmin via API
+    @Column(name = "razorpay_commission_account_id")
+    private String razorpayCommissionAccountId;
+
     // ─── CANCELLATION & TRANSFER TIMING ──────────────────────────────────────
 
     // Minutes after payment within which customer can cancel (default: 30 min)

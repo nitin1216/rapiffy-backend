@@ -57,7 +57,7 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         if (order.getStatus() != OrderStatus.PENDING)
             throw new ApiException("Order is not in PENDING state", HttpStatus.BAD_REQUEST);
 
-        // Deduct stock for each item
+        // Deduct stock from product
         for (OrderItem item : order.getItems()) {
             ShopProduct sp = item.getShopProduct();
             if (sp == null) continue;
@@ -68,7 +68,6 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         }
 
         order.setStatus(OrderStatus.CONFIRMED);
-        // Auto-generate invoiceId on confirm
         if (order.getInvoiceId() == null) {
             order.setInvoiceId("INV-" + java.time.LocalDate.now().toString().replace("-", "") + "-" + String.format("%04d", order.getId()));
         }

@@ -15,4 +15,10 @@ public interface AdminCatalogService {
     CatalogActionResponse setProductVisibility(Long userId, Long shopProductId, boolean active);
 
     CatalogActionResponse addUnlistedProduct(Long userId, AddUnlistedProductRequest request);
+
+    VariantActionResponse addVariants(Long userId, AddVariantsRequest request);
+
+    CatalogActionResponse updateVariant(Long userId, Long variantId, VariantRequest request);
+
+    CatalogActionResponse deleteVariant(Long userId, Long variantId);
 }

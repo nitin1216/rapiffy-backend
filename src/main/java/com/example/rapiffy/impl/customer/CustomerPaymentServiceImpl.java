@@ -289,6 +289,12 @@ public class CustomerPaymentServiceImpl implements CustomerPaymentService {
                 transfer.setTransferredAt(LocalDateTime.now());
                 paymentTransferRepository.save(transfer);
 
+                // Route commission (customerCommission + shopCommission) to platform commission account
+                double totalCommission = customerCommission + shopCommission;
+                if (totalCommission > 0) {
+                    routeCommissionToPlatformAccount(payment, totalCommission);
+                }
+
                 log.info("Transfer created: ₹{} to {} (customer commission ₹{}, shop commission ₹{})",
                         transferAmount, shop.getShopName(), customerCommission, shopCommission);
 
@@ -306,6 +312,39 @@ public class CustomerPaymentServiceImpl implements CustomerPaymentService {
                 transfer.setStatus(TransferStatus.FAILED);
                 paymentTransferRepository.save(transfer);
             }
+        }
+    }
+
+    /**
+     * Route total commission (customerCommission + shopCommission) to platform's Razorpay linked account.
+     * If no commission account is configured, commission stays in the main Razorpay account.
+     */
+    private void routeCommissionToPlatformAccount(Payment payment, double totalCommission) {
+        String commissionAccountId = platformConfigRepository.findAll().stream()
+                .findFirst()
+                .map(PlatformConfig::getRazorpayCommissionAccountId)
+                .orElse(null);
+
+        if (commissionAccountId == null || commissionAccountId.isBlank()) {
+            log.info("No platform commission account configured. Commission ₹{} stays in main account.", totalCommission);
+            return;
+        }
+
+        try {
+            JSONObject transferRequest = new JSONObject();
+            transferRequest.put("account", commissionAccountId);
+            transferRequest.put("amount", Math.round(totalCommission * 100)); // paise
+            transferRequest.put("currency", "INR");
+            transferRequest.put("notes", new JSONObject().put("type", "platform_commission"));
+
+            JSONObject payload = new JSONObject();
+            payload.put("transfers", new org.json.JSONArray().put(transferRequest));
+
+            razorpayClient.payments.transfer(payment.getRazorpayPaymentId(), payload);
+            log.info("Commission ₹{} routed to platform account {}", totalCommission, commissionAccountId);
+
+        } catch (RazorpayException e) {
+            log.error("Commission routing failed: {}", e.getMessage());
         }
     }
 

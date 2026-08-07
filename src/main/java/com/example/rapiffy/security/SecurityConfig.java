@@ -35,7 +35,9 @@ public class SecurityConfig {
                 .requestMatchers("/v1/auth/**").permitAll()
                 // Open: customer browsing (no login needed)
                 .requestMatchers("/v1/customer/shops/**").permitAll()
-                .requestMatchers("/v1/customer/products").permitAll()
+                .requestMatchers("/v1/customer/categories").permitAll()
+                .requestMatchers("/v1/customer/catalog/**").permitAll()
+                .requestMatchers("/v1/customer/products", "/v1/customer/products/**").permitAll()
                 // Open: Razorpay webhook (called by Razorpay servers, not users)
                 .requestMatchers("/v1/webhook/**").permitAll()
                 // Auth required: customer orders and cart
@@ -53,6 +55,8 @@ public class SecurityConfig {
                 .requestMatchers("/**.html", "/**.css", "/**.js").permitAll()
                 // SuperAdmin only
                 .requestMatchers("/v1/super-admin/**").hasRole("SUPER_ADMIN")
+                // Platform commission management (Platform role only)
+                .requestMatchers("/v1/platform/**").hasRole("PLATFORM")
                 // Admin (shopkeeper) only
                 .requestMatchers("/v1/admin/**").hasRole("ADMIN")
                 // Everything else requires authentication

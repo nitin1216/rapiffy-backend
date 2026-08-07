@@ -4,7 +4,8 @@ public enum Roles {
     ADMIN("ShopKeeper"),
     SUPER_ADMIN("Super Admin"),
     CUSTOMER("Customer"),
-    DELIVERY("Delivery Person");
+    DELIVERY("Delivery Person"),
+    PLATFORM("Platform");
 
     private final String displayName;
 

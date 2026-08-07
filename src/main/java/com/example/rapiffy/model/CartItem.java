@@ -4,8 +4,8 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 /**
- * CartItem — one product in the customer's cart.
- * Linked to ShopProduct so we always have latest price/stock info.
+ * CartItem — one product (or variant) in the customer's cart.
+ * shopProduct covers both plain products and variants since variant is now a first-class product.
  */
 @Entity
 @Table(name = "cart_items")

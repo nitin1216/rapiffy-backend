@@ -108,4 +108,29 @@ public class SuperAdminControllerImpl implements SuperAdminController {
     public ResponseEntity<SuperAdminActionResponse> removeAdmin(Long adminUserId) {
         return ResponseEntity.ok(superAdminService.removeAdmin(adminUserId));
     }
+
+    @Override
+    public ResponseEntity<SuperAdminActionResponse> linkShopRazorpayAccount(LinkShopRazorpayRequest request) {
+        return ResponseEntity.ok(superAdminService.linkShopRazorpayAccount(request));
+    }
+
+    @Override
+    public ResponseEntity<MasterVariantActionResponse> addMasterVariants(AddMasterVariantsRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(superAdminService.addMasterVariants(request));
+    }
+
+    @Override
+    public ResponseEntity<SuperAdminActionResponse> updateMasterVariant(Long variantId, MasterVariantRequest request) {
+        return ResponseEntity.ok(superAdminService.updateMasterVariant(variantId, request));
+    }
+
+    @Override
+    public ResponseEntity<MasterProductResponse> getMasterProductWithVariants(Long masterProductId) {
+        return ResponseEntity.ok(superAdminService.getMasterProductWithVariants(masterProductId));
+    }
+
+    @Override
+    public ResponseEntity<SuperAdminActionResponse> deleteMasterVariant(Long variantId) {
+        return ResponseEntity.ok(superAdminService.deleteMasterVariant(variantId));
+    }
 }

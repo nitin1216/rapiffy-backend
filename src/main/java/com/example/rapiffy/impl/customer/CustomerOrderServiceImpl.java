@@ -26,7 +26,6 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final ShopProductRepository shopProductRepository;
-    private final ProfileRepository profileRepository;
     private final UserRepository userRepository;
     private final CustomerCartService cartService;
     private final CustomerAddressRepository customerAddressRepository;
@@ -53,11 +52,7 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
             }
         }
 
-        // Group items by shopId
-        Map<Long, List<PlaceOrderItemRequest>> itemsByShop = request.getItems().stream()
-                .collect(Collectors.groupingBy(PlaceOrderItemRequest::getShopId));
-
-        // Build parent order first
+        // Build parent order
         String dateStr = LocalDate.now().toString().replace("-", "");
         String uniqueSuffix = String.valueOf(System.currentTimeMillis() % 10000);
         ParentOrder parentOrder = new ParentOrder();
@@ -71,42 +66,55 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         parentOrder.setTotalAmount(0.0);
         ParentOrder savedParent = parentOrderRepository.save(parentOrder);
 
+        // Resolve every item first, then group by shop
+        List<ShopProduct[]> resolved = new ArrayList<>(); // [0]=sp placeholder
+        List<ShopProduct> resolvedProducts = new ArrayList<>();
+        List<PlaceOrderItemRequest> resolvedRequests = new ArrayList<>();
+
+        for (PlaceOrderItemRequest itemReq : request.getItems()) {
+            if (itemReq.getShopProductId() == null)
+                throw new ApiException("shopProductId is required for each item", HttpStatus.BAD_REQUEST);
+
+            ShopProduct sp = shopProductRepository.findById(itemReq.getShopProductId())
+                    .orElseThrow(() -> new ApiException("Product not found: " + itemReq.getShopProductId(), HttpStatus.NOT_FOUND));
+
+            if (!sp.isActive())
+                throw new ApiException("Product not available: " + sp.getProductName(), HttpStatus.BAD_REQUEST);
+            if (sp.getStockQuantity() < itemReq.getQuantity())
+                throw new ApiException("Insufficient stock for: " + sp.getProductName(), HttpStatus.BAD_REQUEST);
+
+            resolvedProducts.add(sp);
+            resolvedRequests.add(itemReq);
+        }
+
+        // Group by shop
+        Map<Long, List<Integer>> byShop = new LinkedHashMap<>();
+        for (int i = 0; i < resolvedProducts.size(); i++) {
+            Long shopId = resolvedProducts.get(i).getShop().getId();
+            byShop.computeIfAbsent(shopId, k -> new ArrayList<>()).add(i);
+        }
+
         double grandSubtotal = 0.0;
         double grandGst = 0.0;
         List<Order> subOrders = new ArrayList<>();
         int shopIndex = 1;
 
-        // Create one sub-order per shop
-        for (Map.Entry<Long, List<PlaceOrderItemRequest>> entry : itemsByShop.entrySet()) {
-            Long shopId = entry.getKey();
-            List<PlaceOrderItemRequest> shopItems = entry.getValue();
-
-            Profile shop = profileRepository.findById(shopId)
-                    .orElseThrow(() -> new ApiException("Shop not found: " + shopId, HttpStatus.NOT_FOUND));
-
+        for (Map.Entry<Long, List<Integer>> entry : byShop.entrySet()) {
+            Profile shop = resolvedProducts.get(entry.getValue().get(0)).getShop();
             List<OrderItem> orderItems = new ArrayList<>();
             double subTotal = 0.0;
             double subGst = 0.0;
 
-            for (PlaceOrderItemRequest itemReq : shopItems) {
-                ShopProduct sp = shopProductRepository.findById(itemReq.getShopProductId())
-                        .orElseThrow(() -> new ApiException("Product not found: " + itemReq.getShopProductId(), HttpStatus.NOT_FOUND));
+            for (int idx : entry.getValue()) {
+                ShopProduct sp = resolvedProducts.get(idx);
+                PlaceOrderItemRequest itemReq = resolvedRequests.get(idx);
 
-                if (!sp.getShop().getId().equals(shopId))
-                    throw new ApiException("Product " + sp.getProductName() + " does not belong to shop " + shopId, HttpStatus.BAD_REQUEST);
-
-                if (!sp.isActive())
-                    throw new ApiException("Product not available: " + sp.getProductName(), HttpStatus.BAD_REQUEST);
-
-                if (sp.getStockQuantity() < itemReq.getQuantity())
-                    throw new ApiException("Insufficient stock for: " + sp.getProductName(), HttpStatus.BAD_REQUEST);
-
-                double gstRate = parseGstRate(sp.getGstSlab());
+                double gstRate      = parseGstRate(sp.getGstSlab());
                 double lineSubtotal = sp.getSellingPrice() * itemReq.getQuantity();
-                double gstAmount = Math.round(lineSubtotal * gstRate * 100.0) / 100.0;
+                double gstAmount    = Math.round(lineSubtotal * gstRate * 100.0) / 100.0;
 
                 subTotal += lineSubtotal;
-                subGst += gstAmount;
+                subGst   += gstAmount;
 
                 OrderItem item = new OrderItem();
                 item.setShopProduct(sp);

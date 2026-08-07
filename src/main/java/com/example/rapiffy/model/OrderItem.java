@@ -6,6 +6,7 @@ import lombok.Data;
 /**
  * OrderItem — one line in an Order.
  * Snapshot of product details at the time of order (price/name may change later).
+ * shopProduct covers both plain products and variants since variant is now a first-class product.
  */
 @Entity
 @Table(name = "order_items")
@@ -20,7 +21,7 @@ public class OrderItem {
     @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
-    // Reference to the shop product (nullable — product may be deleted later)
+    // Reference to the shop product or variant (nullable — may be deleted later)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shop_product_id")
     private ShopProduct shopProduct;
@@ -52,11 +53,11 @@ public class OrderItem {
     private Integer quantity;
 
     @Column(name = "gst_slab")
-    private String gstSlab;            // e.g. "5%", "12%", "18%"
+    private String gstSlab;
 
     @Column(name = "gst_amount")
-    private Double gstAmount;          // calculated: sellingPrice * qty * gstRate
+    private Double gstAmount;
 
     @Column(name = "line_total", nullable = false)
-    private Double lineTotal;          // sellingPrice * quantity + gstAmount
+    private Double lineTotal;
 }

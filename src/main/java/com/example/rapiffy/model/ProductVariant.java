@@ -7,14 +7,18 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * ProductVariant represents one variant of a ShopProduct.
+ * ProductVariant is treated as a first-class product.
  *
- * Example: ShopProduct = "Cooking Oil" (hasVariants = true)
- *   Variant 1: Fortune Sunflower, 1L, ₹180, stock=20
- *   Variant 2: Fortune Sunflower, 5L, ₹850, stock=10
- *   Variant 3: Saffola Gold, 1L, ₹210, stock=15
+ * Every variant has its own unique shopProductId — so it can be
+ * carted and ordered exactly like a regular ShopProduct.
  *
- * Each variant is independently priced, stocked, and can be toggled on/off.
+ * parentShopProduct links it back to the parent ShopProduct for grouping/display.
+ * subCategory and category are inherited from the parent ShopProduct.
+ *
+ * Example:
+ *   Parent ShopProduct = "Cooking Oil" (shopProductId = 101, hasVariants = true)
+ *     Variant 1: Fortune 1L  → shopProductId = 301, parentShopProductId = 101
+ *     Variant 2: Saffola 2L  → shopProductId = 302, parentShopProductId = 101
  */
 @Entity
 @Table(name = "product_variants")
@@ -25,23 +29,34 @@ public class ProductVariant {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Unique product identity — auto-generated, used in cart/order just like ShopProduct.id
+    @Column(name = "shop_product_id", unique = true)
+    private Long shopProductId;
+
     // Parent ShopProduct this variant belongs to
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "shop_product_id", nullable = false)
-    private ShopProduct shopProduct;
+    @JoinColumn(name = "parent_shop_product_id", nullable = false)
+    private ShopProduct parentShopProduct;
 
-    // Variant-specific details
+    // ─── PRODUCT FIELDS (same as ShopProduct) ────────────────────────────────
+
     @Column(name = "variant_name")
-    private String variantName; // e.g. "Fortune Sunflower Oil 1L"
+    private String variantName;
 
     @Column(name = "brand")
     private String brand;
 
     @Column(name = "unit")
-    private String unit; // KG, ML, PCS, CM
+    private String unit;
 
     @Column(name = "unit_value")
-    private String unitValue; // 1, 5, 500
+    private String unitValue;
+
+    @Column(name = "short_description")
+    private String shortDescription;
+
+    @Column(name = "long_description", columnDefinition = "TEXT")
+    private String longDescription;
 
     @Column(name = "mrp")
     private Double mrp;
@@ -61,14 +76,26 @@ public class ProductVariant {
     @Column(name = "expiry_date")
     private LocalDate expiryDate;
 
+    @Column(name = "gst_slab")
+    private String gstSlab;
+
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }

@@ -7,6 +7,7 @@ import com.example.rapiffy.repos.*;
 import com.example.rapiffy.services.AdminCatalogService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -17,13 +18,16 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
     private final ProfileRepository profileRepository;
     private final ShopProductRepository shopProductRepository;
     private final SubCategoryRepository subCategoryRepository;
+    private final ProductVariantRepository productVariantRepository;
 
     public AdminCatalogServiceImpl(ProfileRepository profileRepository,
                                    ShopProductRepository shopProductRepository,
-                                   SubCategoryRepository subCategoryRepository) {
+                                   SubCategoryRepository subCategoryRepository,
+                                   ProductVariantRepository productVariantRepository) {
         this.profileRepository = profileRepository;
         this.shopProductRepository = shopProductRepository;
         this.subCategoryRepository = subCategoryRepository;
+        this.productVariantRepository = productVariantRepository;
     }
 
     // ── MY PRODUCTS (tree: Category → SubCategory → Products) ────────────────
@@ -83,7 +87,6 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
         if (request.getUnitValue() != null) sp.setUnitValue(request.getUnitValue());
         if (request.getExpiryDate() != null) sp.setExpiryDate(request.getExpiryDate());
         if (request.getHasVariants() != null) sp.setHasVariants(request.getHasVariants());
-        if (request.getVariants() != null) syncVariants(sp, request.getVariants());
 
         shopProductRepository.save(sp);
         return new CatalogActionResponse(sp.getId(), "Product updated successfully");
@@ -102,6 +105,53 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
         shopProductRepository.save(sp);
         String msg = active ? "Product is now visible to customers" : "Product is now hidden from customers";
         return new CatalogActionResponse(sp.getId(), msg);
+    }
+
+    // ── ADD VARIANTS ─────────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public VariantActionResponse addVariants(Long userId, AddVariantsRequest request) {
+        Profile shop = getShopProfile(userId);
+
+        ShopProduct parent = shopProductRepository.findByIdAndShop(request.getParentShopProductId(), shop)
+                .orElseThrow(() -> new ApiException("Parent product not found", HttpStatus.NOT_FOUND));
+
+        if (!parent.isHasVariants())
+            throw new ApiException("Product does not have variants enabled. Set hasVariants=true first.", HttpStatus.BAD_REQUEST);
+
+        List<ProductVariant> saved = new ArrayList<>();
+        for (VariantRequest vr : request.getVariants()) {
+            ProductVariant variant = new ProductVariant();
+            variant.setParentShopProduct(parent);
+            variant.setVariantName(vr.getVariantName());
+            variant.setBrand(vr.getBrand());
+            variant.setUnit(vr.getUnit());
+            variant.setUnitValue(vr.getUnitValue());
+            variant.setShortDescription(vr.getShortDescription());
+            variant.setLongDescription(vr.getLongDescription());
+            variant.setMrp(vr.getMrp());
+            variant.setSellingPrice(vr.getSellingPrice() != null ? vr.getSellingPrice() : 0.0);
+            variant.setStockQuantity(vr.getStockQuantity() != null ? vr.getStockQuantity() : 0);
+            variant.setThresholdQuantity(vr.getThresholdQuantity());
+            variant.setImageUrl(vr.getImageUrl());
+            variant.setExpiryDate(vr.getExpiryDate());
+            variant.setGstSlab(vr.getGstSlab());
+            variant.setActive(true);
+            saved.add(productVariantRepository.save(variant));
+        }
+
+        // Auto-set shopProductId = variant's generated id (reuse PK as shopProductId)
+        for (ProductVariant v : saved) {
+            v.setShopProductId(v.getId());
+        }
+        productVariantRepository.saveAll(saved);
+
+        List<VariantActionResponse.VariantInfo> infos = saved.stream()
+                .map(v -> new VariantActionResponse.VariantInfo(v.getId(), v.getShopProductId(), v.getVariantName()))
+                .collect(Collectors.toList());
+
+        return new VariantActionResponse(parent.getId(), "Variants added successfully", infos);
     }
 
     // ── ADD UNLISTED PRODUCT ─────────────────────────────────────────────────
@@ -141,11 +191,6 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
         sp.setActive(true);
 
         sp.setHasVariants(request.isHasVariants());
-        if (request.isHasVariants() && request.getVariants() != null) {
-            for (VariantRequest vr : request.getVariants()) {
-                sp.getVariants().add(buildVariant(vr, sp));
-            }
-        }
 
         ShopProduct saved = shopProductRepository.save(sp);
         return new CatalogActionResponse(saved.getId(), "Unlisted product added successfully");
@@ -206,72 +251,77 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
         r.setHasVariants(sp.isHasVariants());
         r.setActive(sp.isActive());
         r.setUnlisted(sp.getMasterProduct() == null);
-        r.setVariants(mapVariants(sp));
+        if (sp.isHasVariants()) {
+            List<VariantResponse> variants = productVariantRepository.findByParentShopProductId(sp.getId())
+                .stream().map(v -> {
+                    VariantResponse vr = new VariantResponse();
+                    vr.setId(v.getId());
+                    vr.setVariantName(v.getVariantName());
+                    vr.setBrand(v.getBrand());
+                    vr.setUnit(v.getUnit());
+                    vr.setUnitValue(v.getUnitValue());
+                    vr.setMrp(v.getMrp());
+                    vr.setSellingPrice(v.getSellingPrice());
+                    vr.setStockQuantity(v.getStockQuantity());
+                    vr.setThresholdQuantity(v.getThresholdQuantity());
+                    vr.setImageUrl(v.getImageUrl());
+                    vr.setExpiryDate(v.getExpiryDate());
+                    vr.setActive(v.isActive());
+                    return vr;
+                }).collect(Collectors.toList());
+            r.setVariants(variants);
+        }
         return r;
     }
 
-    private List<VariantResponse> mapVariants(ShopProduct sp) {
-        if (!sp.isHasVariants() || sp.getVariants() == null || sp.getVariants().isEmpty()) return null;
-        return sp.getVariants().stream().map(v -> {
-            VariantResponse vr = new VariantResponse();
-            vr.setId(v.getId());
-            vr.setVariantName(v.getVariantName());
-            vr.setBrand(v.getBrand());
-            vr.setUnit(v.getUnit());
-            vr.setUnitValue(v.getUnitValue());
-            vr.setMrp(v.getMrp());
-            vr.setSellingPrice(v.getSellingPrice());
-            vr.setStockQuantity(v.getStockQuantity());
-            vr.setThresholdQuantity(v.getThresholdQuantity());
-            vr.setImageUrl(v.getImageUrl());
-            vr.setExpiryDate(v.getExpiryDate());
-            vr.setActive(v.isActive());
-            return vr;
-        }).collect(Collectors.toList());
+    // ── UPDATE VARIANT ───────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public CatalogActionResponse updateVariant(Long userId, Long variantId, VariantRequest request) {
+        Profile shop = getShopProfile(userId);
+
+        ProductVariant variant = productVariantRepository.findById(variantId)
+                .orElseThrow(() -> new ApiException("Variant not found", HttpStatus.NOT_FOUND));
+
+        // Ensure variant belongs to this shop
+        if (!variant.getParentShopProduct().getShop().getId().equals(shop.getId()))
+            throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
+
+        if (request.getVariantName() != null) variant.setVariantName(request.getVariantName());
+        if (request.getBrand() != null) variant.setBrand(request.getBrand());
+        if (request.getUnit() != null) variant.setUnit(request.getUnit());
+        if (request.getUnitValue() != null) variant.setUnitValue(request.getUnitValue());
+        if (request.getShortDescription() != null) variant.setShortDescription(request.getShortDescription());
+        if (request.getLongDescription() != null) variant.setLongDescription(request.getLongDescription());
+        if (request.getMrp() != null) variant.setMrp(request.getMrp());
+        if (request.getSellingPrice() != null) variant.setSellingPrice(request.getSellingPrice());
+        if (request.getStockQuantity() != null) variant.setStockQuantity(request.getStockQuantity());
+        if (request.getThresholdQuantity() != null) variant.setThresholdQuantity(request.getThresholdQuantity());
+        if (request.getImageUrl() != null) variant.setImageUrl(request.getImageUrl());
+        if (request.getExpiryDate() != null) variant.setExpiryDate(request.getExpiryDate());
+        if (request.getGstSlab() != null) variant.setGstSlab(request.getGstSlab());
+
+        productVariantRepository.save(variant);
+        return new CatalogActionResponse(variant.getId(), "Variant updated successfully");
     }
 
-    private ProductVariant buildVariant(VariantRequest vr, ShopProduct sp) {
-        ProductVariant variant = new ProductVariant();
-        variant.setShopProduct(sp);
-        variant.setVariantName(vr.getVariantName());
-        variant.setBrand(vr.getBrand());
-        variant.setUnit(vr.getUnit());
-        variant.setUnitValue(vr.getUnitValue());
-        variant.setMrp(vr.getMrp());
-        variant.setSellingPrice(vr.getSellingPrice());
-        variant.setStockQuantity(vr.getStockQuantity());
-        variant.setThresholdQuantity(vr.getThresholdQuantity());
-        variant.setImageUrl(vr.getImageUrl());
-        variant.setExpiryDate(vr.getExpiryDate());
-        variant.setActive(true);
-        return variant;
+    // ── DELETE VARIANT ───────────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public CatalogActionResponse deleteVariant(Long userId, Long variantId) {
+        Profile shop = getShopProfile(userId);
+
+        ProductVariant variant = productVariantRepository.findById(variantId)
+                .orElseThrow(() -> new ApiException("Variant not found", HttpStatus.NOT_FOUND));
+
+        if (!variant.getParentShopProduct().getShop().getId().equals(shop.getId()))
+            throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
+
+        productVariantRepository.delete(variant);
+        return new CatalogActionResponse(variantId, "Variant deleted successfully");
     }
 
-    private void syncVariants(ShopProduct sp, List<VariantRequest> variantRequests) {
-        Map<Long, ProductVariant> existingMap = sp.getVariants().stream()
-            .collect(Collectors.toMap(ProductVariant::getId, v -> v));
-
-        List<ProductVariant> updatedList = new ArrayList<>();
-        for (VariantRequest vr : variantRequests) {
-            if (vr.getId() != null && existingMap.containsKey(vr.getId())) {
-                ProductVariant existing = existingMap.get(vr.getId());
-                if (vr.getVariantName() != null) existing.setVariantName(vr.getVariantName());
-                if (vr.getBrand() != null) existing.setBrand(vr.getBrand());
-                if (vr.getUnit() != null) existing.setUnit(vr.getUnit());
-                if (vr.getUnitValue() != null) existing.setUnitValue(vr.getUnitValue());
-                if (vr.getMrp() != null) existing.setMrp(vr.getMrp());
-                if (vr.getSellingPrice() != null) existing.setSellingPrice(vr.getSellingPrice());
-                if (vr.getStockQuantity() != null) existing.setStockQuantity(vr.getStockQuantity());
-                if (vr.getThresholdQuantity() != null) existing.setThresholdQuantity(vr.getThresholdQuantity());
-                if (vr.getImageUrl() != null) existing.setImageUrl(vr.getImageUrl());
-                if (vr.getExpiryDate() != null) existing.setExpiryDate(vr.getExpiryDate());
-                updatedList.add(existing);
-            } else {
-                updatedList.add(buildVariant(vr, sp));
-            }
-        }
-
-        sp.getVariants().clear();
-        sp.getVariants().addAll(updatedList);
-    }
 }
+

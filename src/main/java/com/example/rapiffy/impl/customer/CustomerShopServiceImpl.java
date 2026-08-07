@@ -2,24 +2,32 @@ package com.example.rapiffy.impl.customer;
 
 import com.example.rapiffy.dto.customer.*;
 import com.example.rapiffy.enums.Roles;
+import com.example.rapiffy.exceptions.ApiException;
+import com.example.rapiffy.model.ProductVariant;
 import com.example.rapiffy.model.Profile;
 import com.example.rapiffy.model.ShopProduct;
 import com.example.rapiffy.model.SubCategory;
+import com.example.rapiffy.repos.ProductVariantRepository;
 import com.example.rapiffy.repos.ProfileRepository;
 import com.example.rapiffy.repos.ShopProductRepository;
 import com.example.rapiffy.services.customer.CustomerShopService;
+import org.springframework.http.HttpStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.springframework.transaction.annotation.Transactional;
+
 @Service
+@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class CustomerShopServiceImpl implements CustomerShopService {
 
     private final ProfileRepository profileRepository;
     private final ShopProductRepository shopProductRepository;
+    private final ProductVariantRepository productVariantRepository;
 
     // ── NEARBY SHOPS ─────────────────────────────────────────────────────────
 
@@ -46,7 +54,46 @@ public class CustomerShopServiceImpl implements CustomerShopService {
 
     @Override
     public List<CustomerCatalogResponse> getAggregatedCatalog(double lat, double lng) {
-        List<ShopProduct> allProducts = profileRepository.findAllByUserRole(Roles.ADMIN)
+        return buildCatalogTree(getNearbyProducts(lat, lng, null), lat, lng);
+    }
+
+    // ── CATALOG BY CATEGORY (filtered by categoryId from all nearby shops) ────
+
+    @Override
+    public List<CustomerCatalogResponse> getCatalogByCategory(double lat, double lng, Long categoryId) {
+        return buildCatalogTree(getNearbyProducts(lat, lng, categoryId), lat, lng);
+    }
+
+    // ── GET PRODUCT BY ID ─────────────────────────────────────────────────────
+
+    @Override
+    public CustomerProductResponse getProductById(Long shopProductId) {
+        ShopProduct product = shopProductRepository.findById(shopProductId)
+                .orElseThrow(() -> new ApiException("Product not found", HttpStatus.NOT_FOUND));
+        return toProductResponse(product, null, null);
+    }
+
+    // ── GET VARIANTS BY PARENT SHOP PRODUCT ID ────────────────────────────────
+
+    @Override
+    public List<CustomerVariantResponse> getVariantsByParentShopProductId(Long shopProductId) {
+        ShopProduct parent = shopProductRepository.findById(shopProductId)
+                .orElseThrow(() -> new ApiException("Product not found", HttpStatus.NOT_FOUND));
+
+        if (!parent.isHasVariants())
+            return Collections.emptyList();
+
+        return productVariantRepository
+                .findByParentShopProductIdAndIsActive(shopProductId, true)
+                .stream()
+                .map(this::toVariantResponse)
+                .collect(Collectors.toList());
+    }
+
+    // ── NEARBY PRODUCTS (shared helper) ──────────────────────────────────────
+
+    private List<ShopProduct> getNearbyProducts(double lat, double lng, Long categoryId) {
+        return profileRepository.findAllByUserRole(Roles.ADMIN)
                 .stream()
                 .filter(shop -> hasValidLocation(shop) && hasServingRange(shop))
                 .filter(shop -> {
@@ -54,17 +101,10 @@ public class CustomerShopServiceImpl implements CustomerShopService {
                     double shopLng = Double.parseDouble(shop.getAddress().getLongitude());
                     return haversine(lat, lng, shopLat, shopLng) <= shop.getServingRangeInKm();
                 })
-                .flatMap(shop -> {
-                    double shopLat = Double.parseDouble(shop.getAddress().getLatitude());
-                    double shopLng = Double.parseDouble(shop.getAddress().getLongitude());
-                    double distance = Math.round(haversine(lat, lng, shopLat, shopLng) * 100.0) / 100.0;
-                    return shopProductRepository.findByShopIdAndIsActive(shop.getId(), true)
-                            .stream()
-                            .peek(p -> p.getShop()); // ensure shop is loaded
-                })
+                .flatMap(shop -> shopProductRepository.findByShopIdAndIsActive(shop.getId(), true).stream())
+                .filter(p -> categoryId == null ||
+                    (p.getSubCategory() != null && p.getSubCategory().getCategory().getId().equals(categoryId)))
                 .collect(Collectors.toList());
-
-        return buildCatalogTree(allProducts, lat, lng);
     }
 
     // ── TREE BUILDER ──────────────────────────────────────────────────────────
@@ -145,23 +185,6 @@ public class CustomerShopServiceImpl implements CustomerShopService {
             } catch (NumberFormatException ignored) {}
         }
 
-        List<CustomerVariantResponse> variants = p.isHasVariants()
-                ? p.getVariants().stream()
-                    .filter(v -> v.isActive())
-                    .map(v -> CustomerVariantResponse.builder()
-                            .variantId(v.getId())
-                            .variantName(v.getVariantName())
-                            .brand(v.getBrand())
-                            .unit(v.getUnit())
-                            .unitValue(v.getUnitValue())
-                            .mrp(v.getMrp())
-                            .sellingPrice(v.getSellingPrice())
-                            .stockQuantity(v.getStockQuantity())
-                            .imageUrl(v.getImageUrl())
-                            .build())
-                    .toList()
-                : null;
-
         return CustomerProductResponse.builder()
                 .shopProductId(p.getId())
                 .productName(p.getProductName())
@@ -178,10 +201,25 @@ public class CustomerShopServiceImpl implements CustomerShopService {
                 .categoryId(p.getSubCategory() != null ? p.getSubCategory().getCategory().getId() : null)
                 .categoryName(p.getSubCategory() != null ? p.getSubCategory().getCategory().getCategoryName() : null)
                 .hasVariants(p.isHasVariants())
-                .variants(variants)
                 .shopId(p.getShop().getId())
                 .shopName(p.getShop().getShopName())
                 .distanceInKm(distance)
+                .build();
+    }
+
+    private CustomerVariantResponse toVariantResponse(ProductVariant v) {
+        return CustomerVariantResponse.builder()
+                .variantId(v.getId())
+                .shopProductId(v.getShopProductId())
+                .variantName(v.getVariantName())
+                .brand(v.getBrand())
+                .unit(v.getUnit())
+                .unitValue(v.getUnitValue())
+                .mrp(v.getMrp())
+                .sellingPrice(v.getSellingPrice())
+                .stockQuantity(v.getStockQuantity())
+                .imageUrl(v.getImageUrl())
+                .shortDescription(v.getShortDescription())
                 .build();
     }
 

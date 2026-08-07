@@ -9,6 +9,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 public class RapiffyApplication {
 
+//	"latitude": "18.5204",
+//	 "longitude": "73.8567",
 	public static void main(String[] args) {
 		SpringApplication.run(RapiffyApplication.class, args);
 		System.out.println("--------------------------------------------------");

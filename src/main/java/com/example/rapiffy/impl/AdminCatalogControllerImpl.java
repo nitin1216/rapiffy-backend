@@ -51,6 +51,22 @@ public class AdminCatalogControllerImpl implements AdminCatalogController {
             .body(catalogService.addUnlistedProduct(getCurrentUserId(), request));
     }
 
+    @Override
+    public ResponseEntity<VariantActionResponse> addVariants(AddVariantsRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(catalogService.addVariants(getCurrentUserId(), request));
+    }
+
+    @Override
+    public ResponseEntity<CatalogActionResponse> updateVariant(Long variantId, VariantRequest request) {
+        return ResponseEntity.ok(catalogService.updateVariant(getCurrentUserId(), variantId, request));
+    }
+
+    @Override
+    public ResponseEntity<CatalogActionResponse> deleteVariant(Long variantId) {
+        return ResponseEntity.ok(catalogService.deleteVariant(getCurrentUserId(), variantId));
+    }
+
     private Long getCurrentUserId() {
         String identifier = SecurityContextHolder.getContext().getAuthentication().getName();
         User user = userRepository.findByPhoneNumber(identifier)

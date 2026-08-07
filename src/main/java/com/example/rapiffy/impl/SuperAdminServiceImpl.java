@@ -11,7 +11,12 @@ import com.example.rapiffy.enums.Roles;
 import com.example.rapiffy.exceptions.ApiException;
 import com.example.rapiffy.model.*;
 import com.example.rapiffy.repos.*;
+import com.example.rapiffy.config.RazorpayRestClient;
+import com.example.rapiffy.model.ProductVariant;
 import com.example.rapiffy.services.SuperAdminService;
+import com.razorpay.RazorpayClient;
+import com.razorpay.RazorpayException;
+import org.json.JSONObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -31,6 +36,10 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final ShopProductRepository shopProductRepository;
+    private final MasterProductVariantRepository masterProductVariantRepository;
+    private final ProductVariantRepository productVariantRepository;
+    private final RazorpayClient razorpayClient;
+    private final RazorpayRestClient razorpayRestClient;
     private final BCryptPasswordEncoder passwordEncoder;
 
     public SuperAdminServiceImpl(CategoryRepository categoryRepository,
@@ -38,13 +47,21 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                                  MasterProductRepository masterProductRepository,
                                  UserRepository userRepository,
                                  ProfileRepository profileRepository,
-                                 ShopProductRepository shopProductRepository) {
+                                 ShopProductRepository shopProductRepository,
+                                 MasterProductVariantRepository masterProductVariantRepository,
+                                 ProductVariantRepository productVariantRepository,
+                                 RazorpayClient razorpayClient,
+                                 RazorpayRestClient razorpayRestClient) {
         this.categoryRepository = categoryRepository;
         this.subCategoryRepository = subCategoryRepository;
         this.masterProductRepository = masterProductRepository;
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.shopProductRepository = shopProductRepository;
+        this.masterProductVariantRepository = masterProductVariantRepository;
+        this.productVariantRepository = productVariantRepository;
+        this.razorpayClient = razorpayClient;
+        this.razorpayRestClient = razorpayRestClient;
         this.passwordEncoder = new BCryptPasswordEncoder();
     }
 
@@ -119,6 +136,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public SuperAdminActionResponse addMasterProduct(AddMasterProductRequest request) {
         Category category = categoryRepository.findById(request.getCategoryId())
             .orElseThrow(() -> new ApiException("Category not found", HttpStatus.NOT_FOUND));
@@ -146,12 +164,13 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         mp.setHasVariants(request.isHasVariants());
         mp.setActive(true);
 
+        masterProductRepository.save(mp);
+
         if (request.getVariants() != null && !request.getVariants().isEmpty()) {
             mp.setHasVariants(true);
             syncMasterVariants(mp, request.getVariants());
+            masterProductRepository.save(mp);
         }
-
-        masterProductRepository.save(mp);
         pushToMatchingShops(List.of(mp), subCategory);
         return new SuperAdminActionResponse("Master product '" + mp.getProductName() + "' added successfully");
     }
@@ -294,31 +313,15 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         if (!mp.getSubCategory().getId().equals(subCategory.getId()))
             throw new ApiException("Product does not belong to the given SubCategory", HttpStatus.BAD_REQUEST);
 
-        boolean categoryBelongsToShop = profile.getShopCategories().stream()
-            .anyMatch(c -> c.getId().equals(category.getId()));
+        boolean categoryBelongsToShop = profile.getShopCategories().stream().anyMatch(c -> c.getId().equals(category.getId()));
+
         if (!categoryBelongsToShop)
             throw new ApiException("Category '" + category.getCategoryName() + "' is not assigned to this shop", HttpStatus.BAD_REQUEST);
 
-        if (shopProductRepository.findByShopAndMasterProduct(profile, mp).isPresent())
-            throw new ApiException("Product already exists in this shop", HttpStatus.CONFLICT);
+//        if (shopProductRepository.findByShopAndMasterProduct(profile, mp).isPresent())
+//            throw new ApiException("Product already exists in this shop", HttpStatus.CONFLICT);
 
-        ShopProduct sp = new ShopProduct();
-        sp.setShop(profile);
-        sp.setMasterProduct(mp);
-        sp.setSubCategory(subCategory);
-        sp.setProductName(mp.getProductName());
-        sp.setBrand(mp.getBrand());
-        sp.setUnit(mp.getUnit());
-        sp.setUnitValue(mp.getUnitValue());
-        sp.setMrp(mp.getMrp());
-        sp.setImageUrl(mp.getImageUrl());
-        sp.setShortDescription(mp.getShortDescription());
-        sp.setLongDescription(mp.getLongDescription());
-        sp.setHasVariants(mp.isHasVariants());
-        sp.setSellingPrice(0.0);
-        sp.setStockQuantity(0);
-        sp.setActive(true);
-
+        ShopProduct sp = buildShopProductFromMaster(mp, profile, subCategory);
         shopProductRepository.save(sp);
         return new SuperAdminActionResponse("Product '" + mp.getProductName() + "' added to shop '" + profile.getShopName() + "'");
     }
@@ -344,6 +347,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     // ── ADMIN ONBOARDING & REMOVAL ──────────────────────────────────────────
 
     @Override
+    @org.springframework.transaction.annotation.Transactional
     public SuperAdminActionResponse onboardAdmin(OnboardAdminRequest request) {
         // Check if phone already registered
         if (userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
@@ -395,26 +399,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                 .filter(sc -> categories.stream().anyMatch(c -> c.getId().equals(sc.getCategory().getId())))
                 .collect(Collectors.toList());
             List<MasterProduct> masterProducts = masterProductRepository.findBySubCategoryInAndIsActiveTrue(subCategories);
-            List<ShopProduct> shopProducts = masterProducts.stream().map(mp -> {
-                ShopProduct sp = new ShopProduct();
-                sp.setShop(profile);
-                sp.setMasterProduct(mp);
-                sp.setSubCategory(mp.getSubCategory());
-                sp.setProductName(mp.getProductName());
-                sp.setShortDescription(mp.getShortDescription());
-                sp.setLongDescription(mp.getLongDescription());
-                sp.setBrand(mp.getBrand());
-                sp.setUnit(mp.getUnit());
-                sp.setUnitValue(mp.getUnitValue());
-                sp.setMrp(mp.getMrp());
-                sp.setImageUrl(mp.getImageUrl());
-                sp.setSellingPrice(0.0);
-                sp.setStockQuantity(0);
-                sp.setHasVariants(mp.isHasVariants());
-                sp.setActive(true);
-                return sp;
-            }).collect(Collectors.toList());
-            shopProductRepository.saveAll(shopProducts);
+            masterProducts.forEach(mp -> buildShopProductFromMaster(mp, profile, mp.getSubCategory()));
         }
 
         return new SuperAdminActionResponse(
@@ -521,6 +506,140 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         return new SuperAdminActionResponse("Admin (userId: " + adminUserId + ") removed successfully");
     }
 
+    // ── ADD MASTER VARIANTS ─────────────────────────────────────────────────
+
+    @Override
+    public MasterProductResponse getMasterProductWithVariants(Long masterProductId) {
+        MasterProduct mp = masterProductRepository.findById(masterProductId)
+            .orElseThrow(() -> new ApiException("Master product not found", HttpStatus.NOT_FOUND));
+        return MasterProductResponse.from(mp);
+    }
+
+    @Override
+    public MasterVariantActionResponse addMasterVariants(AddMasterVariantsRequest request) {
+        MasterProduct parent = masterProductRepository.findById(request.getParentMasterProductId())
+                .orElseThrow(() -> new ApiException("Master product not found", HttpStatus.NOT_FOUND));
+
+        if (!parent.isHasVariants())
+            throw new ApiException("Master product does not have variants enabled. Set hasVariants=true first.", HttpStatus.BAD_REQUEST);
+
+        List<MasterProductVariant> saved = new ArrayList<>();
+        for (MasterVariantRequest vr : request.getVariants()) {
+            MasterProductVariant variant = new MasterProductVariant();
+            variant.setParentMasterProduct(parent);
+            variant.setVariantName(vr.getVariantName());
+            variant.setBrand(vr.getBrand());
+            variant.setUnit(vr.getUnit());
+            variant.setUnitValue(vr.getUnitValue());
+            variant.setShortDescription(vr.getShortDescription());
+            variant.setLongDescription(vr.getLongDescription());
+            variant.setMrp(vr.getMrp());
+            variant.setSellingPrice(vr.getSellingPrice());
+            variant.setStockQuantity(vr.getStockQuantity());
+            variant.setThresholdQuantity(vr.getThresholdQuantity());
+            variant.setImageUrl(vr.getImageUrl());
+            variant.setExpiryDate(vr.getExpiryDate());
+            variant.setGstSlab(vr.getGstSlab());
+            variant.setActive(true);
+            saved.add(masterProductVariantRepository.save(variant));
+        }
+
+        List<MasterVariantActionResponse.VariantInfo> infos = saved.stream()
+                .map(v -> new MasterVariantActionResponse.VariantInfo(v.getId(), v.getVariantName()))
+                .collect(Collectors.toList());
+
+        return new MasterVariantActionResponse(parent.getId(), "Master variants added successfully", infos);
+    }
+
+    @Override
+    public SuperAdminActionResponse updateMasterVariant(Long variantId, MasterVariantRequest request) {
+        MasterProductVariant variant = masterProductVariantRepository.findById(variantId)
+                .orElseThrow(() -> new ApiException("Master variant not found", HttpStatus.NOT_FOUND));
+
+        if (request.getVariantName() != null) variant.setVariantName(request.getVariantName());
+        if (request.getBrand() != null) variant.setBrand(request.getBrand());
+        if (request.getUnit() != null) variant.setUnit(request.getUnit());
+        if (request.getUnitValue() != null) variant.setUnitValue(request.getUnitValue());
+        if (request.getShortDescription() != null) variant.setShortDescription(request.getShortDescription());
+        if (request.getLongDescription() != null) variant.setLongDescription(request.getLongDescription());
+        if (request.getMrp() != null) variant.setMrp(request.getMrp());
+        if (request.getSellingPrice() != null) variant.setSellingPrice(request.getSellingPrice());
+        if (request.getStockQuantity() != null) variant.setStockQuantity(request.getStockQuantity());
+        if (request.getThresholdQuantity() != null) variant.setThresholdQuantity(request.getThresholdQuantity());
+        if (request.getImageUrl() != null) variant.setImageUrl(request.getImageUrl());
+        if (request.getExpiryDate() != null) variant.setExpiryDate(request.getExpiryDate());
+        if (request.getGstSlab() != null) variant.setGstSlab(request.getGstSlab());
+
+        masterProductVariantRepository.save(variant);
+        return new SuperAdminActionResponse("Master variant updated successfully");
+    }
+
+    @Override
+    public SuperAdminActionResponse deleteMasterVariant(Long variantId) {
+        MasterProductVariant variant = masterProductVariantRepository.findById(variantId)
+                .orElseThrow(() -> new ApiException("Master variant not found", HttpStatus.NOT_FOUND));
+        masterProductVariantRepository.delete(variant);
+        return new SuperAdminActionResponse("Master variant deleted successfully");
+    }
+
+    // ── RAZORPAY LINKING ─────────────────────────────────────────────────────
+
+    /**
+     * API 1: Link a shop (Admin) with Razorpay.
+     * Creates a Razorpay linked account for the shop and saves the account ID in Profile.
+     * Call this after onboarding the admin, or retry for existing shops.
+     */
+    @Override
+    public SuperAdminActionResponse linkShopRazorpayAccount(LinkShopRazorpayRequest request) {
+        User user = userRepository.findByPhoneNumber(request.getPhoneNumber())
+            .orElseThrow(() -> new ApiException("Admin not found", HttpStatus.NOT_FOUND));
+        if (user.getRole() != Roles.ADMIN)
+            throw new ApiException("User is not an Admin", HttpStatus.BAD_REQUEST);
+
+        Profile profile = profileRepository.findByUserId(user.getId())
+            .orElseThrow(() -> new ApiException("Profile not found", HttpStatus.NOT_FOUND));
+
+        if (profile.getRazorpayLinkedAccountId() != null && !profile.getRazorpayLinkedAccountId().isBlank())
+            throw new ApiException("Shop already has a Razorpay linked account: " + profile.getRazorpayLinkedAccountId(), HttpStatus.CONFLICT);
+
+        try {
+            JSONObject accountRequest = new JSONObject();
+            accountRequest.put("email", request.getEmail());
+            accountRequest.put("profile", new JSONObject()
+                .put("category", "ecommerce")
+                .put("subcategory", "groceries")
+                .put("addresses", new JSONObject()
+                    .put("registered", new JSONObject()
+                        .put("street1", "NA")
+                        .put("city", "NA")
+                        .put("state", "Maharashtra")
+                        .put("postal_code", "400001")
+                        .put("country", "IN"))));
+            accountRequest.put("type", "route");
+            accountRequest.put("legal_business_name", request.getBusinessName());
+            accountRequest.put("business_type", request.getBusinessType() != null ? request.getBusinessType() : "individual");
+            accountRequest.put("legal_info", new JSONObject()
+                .put("pan", "AAAAA0000A")  // placeholder — update with real PAN if available
+                .put("gst", profile.getGstNumber() != null ? profile.getGstNumber() : ""));
+
+            com.razorpay.Account razorpayAccount = razorpayClient.account.create(accountRequest);
+            String linkedAccountId = razorpayAccount.get("id");
+
+            // Link bank account via direct REST call (SDK v1.4.8 doesn't support this)
+            razorpayRestClient.addBankAccount(linkedAccountId, request.getBeneficiaryName(),
+                request.getBankAccountNumber(), request.getIfsc());
+
+            profile.setRazorpayLinkedAccountId(linkedAccountId);
+            profileRepository.save(profile);
+
+            return new SuperAdminActionResponse(
+                "Razorpay linked account created for shop '" + profile.getShopName() + "': " + linkedAccountId);
+
+        } catch (RazorpayException e) {
+            throw new ApiException("Razorpay account creation failed: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     // ── HELPERS ──────────────────────────────────────────────────────────────
 
     private AdminProfileResponse buildAdminProfileResponse(Profile profile, User user) {
@@ -575,30 +694,56 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         List<Profile> shops = profileRepository.findAllByShopCategoryId(categoryId);
         if (shops.isEmpty()) return;
 
-        List<ShopProduct> toSave = new ArrayList<>();
         for (Profile shop : shops) {
             for (MasterProduct mp : products) {
                 if (shopProductRepository.findByShopAndMasterProduct(shop, mp).isPresent()) continue;
-                ShopProduct sp = new ShopProduct();
-                sp.setShop(shop);
-                sp.setMasterProduct(mp);
-                sp.setSubCategory(subCategory);
-                sp.setProductName(mp.getProductName());
-                sp.setBrand(mp.getBrand());
-                sp.setUnit(mp.getUnit());
-                sp.setUnitValue(mp.getUnitValue());
-                sp.setMrp(mp.getMrp());
-                sp.setImageUrl(mp.getImageUrl());
-                sp.setShortDescription(mp.getShortDescription());
-                sp.setLongDescription(mp.getLongDescription());
-                sp.setHasVariants(mp.isHasVariants());
-                sp.setSellingPrice(0.0);
-                sp.setStockQuantity(0);
-                sp.setActive(true);
-                toSave.add(sp);
+                buildShopProductFromMaster(mp, shop, subCategory);
             }
         }
-        shopProductRepository.saveAll(toSave);
+    }
+
+    private ShopProduct buildShopProductFromMaster(MasterProduct mp, Profile shop, SubCategory subCategory) {
+        ShopProduct sp = new ShopProduct();
+        sp.setShop(shop);
+        sp.setMasterProduct(mp);
+        sp.setSubCategory(subCategory);
+        sp.setProductName(mp.getProductName());
+        sp.setBrand(mp.getBrand());
+        sp.setUnit(mp.getUnit());
+        sp.setUnitValue(mp.getUnitValue());
+        sp.setMrp(mp.getMrp());
+        sp.setImageUrl(mp.getImageUrl());
+        sp.setShortDescription(mp.getShortDescription());
+        sp.setLongDescription(mp.getLongDescription());
+        sp.setHasVariants(mp.isHasVariants());
+        sp.setSellingPrice(0.0);
+        sp.setStockQuantity(0);
+        sp.setActive(true);
+        ShopProduct savedSp = shopProductRepository.save(sp);
+
+        if (mp.isHasVariants() && !mp.getVariants().isEmpty()) {
+            for (MasterProductVariant mv : mp.getVariants()) {
+                ProductVariant pv = new ProductVariant();
+                pv.setParentShopProduct(savedSp);
+                pv.setVariantName(mv.getVariantName());
+                pv.setBrand(mv.getBrand());
+                pv.setUnit(mv.getUnit());
+                pv.setUnitValue(mv.getUnitValue());
+                pv.setMrp(mv.getMrp());
+                pv.setShortDescription(mv.getShortDescription());
+                pv.setLongDescription(mv.getLongDescription());
+                pv.setImageUrl(mv.getImageUrl());
+                pv.setGstSlab(mv.getGstSlab());
+                pv.setSellingPrice(0.0);
+                pv.setStockQuantity(0);
+                pv.setActive(true);
+                ProductVariant saved = productVariantRepository.save(pv);
+                saved.setShopProductId(saved.getId());
+                productVariantRepository.save(saved);
+            }
+        }
+
+        return savedSp;
     }
 
     private String maskLast(String value, int lastN) {
@@ -658,32 +803,19 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         List<MasterProductVariant> updatedList = new ArrayList<>();
 
         for (MasterVariantRequest vr : variantRequests) {
-            if (vr.getId() != null && existingMap.containsKey(vr.getId())) {
-                // Update existing
-                MasterProductVariant existing = existingMap.get(vr.getId());
-                if (vr.getVariantName() != null) existing.setVariantName(vr.getVariantName());
-                if (vr.getBrand() != null) existing.setBrand(vr.getBrand());
-                if (vr.getUnit() != null) existing.setUnit(vr.getUnit());
-                if (vr.getUnitValue() != null) existing.setUnitValue(vr.getUnitValue());
-                if (vr.getMrp() != null) existing.setMrp(vr.getMrp());
-                if (vr.getImageUrl() != null) existing.setImageUrl(vr.getImageUrl());
-                updatedList.add(existing);
-            } else {
-                // Add new
-                MasterProductVariant newVariant = new MasterProductVariant();
-                newVariant.setMasterProduct(mp);
-                newVariant.setVariantName(vr.getVariantName());
-                newVariant.setBrand(vr.getBrand());
-                newVariant.setUnit(vr.getUnit());
-                newVariant.setUnitValue(vr.getUnitValue());
-                newVariant.setMrp(vr.getMrp());
-                newVariant.setImageUrl(vr.getImageUrl());
-                newVariant.setActive(true);
-                updatedList.add(newVariant);
-            }
+            // Add new only — update via dedicated updateMasterVariant API
+            MasterProductVariant newVariant = new MasterProductVariant();
+            newVariant.setParentMasterProduct(mp);
+            newVariant.setVariantName(vr.getVariantName());
+            newVariant.setBrand(vr.getBrand());
+            newVariant.setUnit(vr.getUnit());
+            newVariant.setUnitValue(vr.getUnitValue());
+            newVariant.setMrp(vr.getMrp());
+            newVariant.setImageUrl(vr.getImageUrl());
+            newVariant.setActive(true);
+            updatedList.add(newVariant);
         }
 
-        // Replace — orphanRemoval handles DB delete for removed ones
         mp.getVariants().clear();
         mp.getVariants().addAll(updatedList);
         mp.setHasVariants(!updatedList.isEmpty());

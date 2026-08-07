@@ -13,8 +13,4 @@ public class PlaceOrderItemRequest {
     @NotNull
     @Min(value = 1, message = "Quantity must be at least 1")
     private Integer quantity;
-
-    // Which shop this product belongs to — used to group into sub-orders
-    @NotNull(message = "shopId is required")
-    private Long shopId;
 }

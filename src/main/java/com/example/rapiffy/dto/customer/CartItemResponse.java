@@ -15,5 +15,5 @@ public class CartItemResponse {
     private Double mrp;
     private Double sellingPrice;
     private Integer quantity;
-    private Double itemTotal; // sellingPrice * quantity
+    private Double itemTotal;
 }

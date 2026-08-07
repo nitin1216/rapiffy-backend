@@ -125,12 +125,12 @@ public class PaymentWebhookHandler {
 
     private PaymentMethod mapPaymentMethod(String method) {
         if (method == null) return null;
-        return switch (method.toLowerCase()) {
-            case "upi" -> PaymentMethod.UPI;
-            case "card" -> PaymentMethod.CARD;
-            case "netbanking" -> PaymentMethod.NETBANKING;
-            case "wallet" -> PaymentMethod.WALLET;
-            default -> null;
-        };
+        switch (method.toLowerCase()) {
+            case "upi": return PaymentMethod.UPI;
+            case "card": return PaymentMethod.CARD;
+            case "netbanking": return PaymentMethod.NETBANKING;
+            case "wallet": return PaymentMethod.WALLET;
+            default: return null;
+        }
     }
 }

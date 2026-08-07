@@ -52,6 +52,12 @@ public class LoginSignUpControllerImpl implements LoginSignUpController {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.signUp(request));
     }
 
+    @Override
+    public ResponseEntity<SignUpResponse> signUpPlatform(SignUpRequest request) {
+        request.setRole(Roles.PLATFORM);
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.signUp(request));
+    }
+
     // ── Google OAuth ──────────────────────────────────────────────────────────
 
     @Override

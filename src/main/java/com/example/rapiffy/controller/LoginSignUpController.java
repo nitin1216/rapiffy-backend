@@ -36,6 +36,10 @@ public interface LoginSignUpController {
     @PostMapping("/deli-sign-up")
     ResponseEntity<SignUpResponse> signUpDelivery(@RequestBody SignUpRequest request);
 
+    @Operation(summary = "Platform signup")
+    @PostMapping("/platform-sign-up")
+    ResponseEntity<SignUpResponse> signUpPlatform(@RequestBody SignUpRequest request);
+
     // ── Google OAuth ──────────────────────────────────────────────────────────
     // Note: Admin cannot self-signup. Only SuperAdmin onboards Admin.
 
