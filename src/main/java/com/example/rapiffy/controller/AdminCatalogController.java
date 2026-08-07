@@ -67,4 +67,31 @@ public interface AdminCatalogController {
     )
     @PostMapping("/add-unlisted")
     ResponseEntity<CatalogActionResponse> addUnlistedProduct(@RequestBody AddUnlistedProductRequest request);
+
+    // ── ADD VARIANTS ─────────────────────────────────────────────────────────
+
+    @Operation(
+        summary = "Add variants to a shop product",
+        description = "Pass parentShopProductId and a list of variants. Each variant gets its own shopProductId."
+    )
+    @PostMapping("/variants")
+    ResponseEntity<VariantActionResponse> addVariants(@RequestBody AddVariantsRequest request);
+
+    // ── UPDATE VARIANT ───────────────────────────────────────────────────────
+
+    @Operation(
+        summary = "Update a variant",
+        description = "Update any field of a specific variant by variantId. Only send fields you want to change."
+    )
+    @PutMapping("/variants/{variantId}")
+    ResponseEntity<CatalogActionResponse> updateVariant(
+        @PathVariable Long variantId,
+        @RequestBody VariantRequest request
+    );
+
+    // ── DELETE VARIANT ───────────────────────────────────────────────────────
+
+    @Operation(summary = "Delete a variant by variantId")
+    @DeleteMapping("/variants/{variantId}")
+    ResponseEntity<CatalogActionResponse> deleteVariant(@PathVariable Long variantId);
 }
