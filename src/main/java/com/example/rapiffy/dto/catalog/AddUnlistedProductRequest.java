@@ -33,5 +33,8 @@ public class AddUnlistedProductRequest {
 
     // Variants — default false (single product)
     private boolean hasVariants = false;
+
+    // e.g. ["Size", "Colour"] — required when hasVariants = true
+    private List<String> attributeTypes;
     private List<VariantRequest> variants;
 }

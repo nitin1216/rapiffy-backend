@@ -41,12 +41,6 @@ public class MasterProductVariant {
     @Column(name = "brand")
     private String brand;
 
-    @Column(name = "unit")
-    private String unit;
-
-    @Column(name = "unit_value")
-    private String unitValue;
-
     @Column(name = "short_description")
     private String shortDescription;
 
@@ -73,6 +67,10 @@ public class MasterProductVariant {
 
     @Column(name = "gst_slab")
     private String gstSlab;
+
+    // Attribute values for this variant (e.g. Size=8, Colour=Red)
+    @OneToMany(mappedBy = "masterProductVariant", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<VariantAttributeValue> attributeValues = new java.util.ArrayList<>();
 
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;

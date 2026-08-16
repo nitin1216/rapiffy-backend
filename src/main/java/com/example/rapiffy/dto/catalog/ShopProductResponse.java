@@ -24,5 +24,8 @@ public class ShopProductResponse {
     private boolean hasVariants;
     private boolean isActive;
     private boolean unlisted;
+
+    // e.g. ["Size", "Colour"] — only when hasVariants = true
+    private List<String> attributeTypes;
     private List<VariantResponse> variants;
 }

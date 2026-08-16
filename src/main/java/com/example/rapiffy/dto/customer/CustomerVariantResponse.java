@@ -3,6 +3,8 @@ package com.example.rapiffy.dto.customer;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.Map;
+
 @Data
 @Builder
 public class CustomerVariantResponse {
@@ -11,11 +13,12 @@ public class CustomerVariantResponse {
     private Long shopProductId;       // use this to add to cart
     private String variantName;
     private String brand;
-    private String unit;
-    private String unitValue;
     private String shortDescription;
     private Double mrp;
     private Double sellingPrice;
     private Integer stockQuantity;
     private String imageUrl;
+
+    // e.g. { "Size": "8", "Colour": "Red" }
+    private Map<String, String> attributes;
 }

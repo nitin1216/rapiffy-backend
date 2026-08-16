@@ -6,6 +6,7 @@ import com.example.rapiffy.dto.customer.CustomerVariantResponse;
 import com.example.rapiffy.dto.customer.NearbyShopResponse;
 
 import java.util.List;
+import java.util.Map;
 
 public interface CustomerShopService {
 
@@ -20,4 +21,8 @@ public interface CustomerShopService {
     CustomerProductResponse getProductById(Long shopProductId);
 
     List<CustomerVariantResponse> getVariantsByParentShopProductId(Long shopProductId);
+
+    Map<String, List<String>> getProductAttributes(Long shopProductId);
+
+    List<CustomerVariantResponse> filterVariants(Long shopProductId, Map<String, String> selectedAttributes);
 }

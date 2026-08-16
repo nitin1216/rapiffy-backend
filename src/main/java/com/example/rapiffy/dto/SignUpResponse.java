@@ -8,5 +8,6 @@ import lombok.Data;
 public class SignUpResponse {
 
     private String token;
+    private String refreshToken;
     private String message;
 }

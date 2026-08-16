@@ -4,6 +4,7 @@ import com.example.rapiffy.controller.LoginSignUpController;
 import com.example.rapiffy.dto.GoogleAuthRequest;
 import com.example.rapiffy.dto.LoginRequest;
 import com.example.rapiffy.dto.LoginResponse;
+import com.example.rapiffy.dto.RefreshTokenRequest;
 import com.example.rapiffy.dto.SignUpRequest;
 import com.example.rapiffy.dto.SignUpResponse;
 import com.example.rapiffy.enums.Roles;
@@ -68,5 +69,16 @@ public class LoginSignUpControllerImpl implements LoginSignUpController {
     @Override
     public ResponseEntity<LoginResponse> googleLoginDelivery(GoogleAuthRequest request) {
         return ResponseEntity.ok(googleAuthService.googleLogin(request, Roles.DELIVERY));
+    }
+
+    @Override
+    public ResponseEntity<LoginResponse> refresh(RefreshTokenRequest request) {
+        return ResponseEntity.ok(authService.refresh(request));
+    }
+
+    @Override
+    public ResponseEntity<Void> logout(RefreshTokenRequest request) {
+        authService.logout(request);
+        return ResponseEntity.ok().build();
     }
 }

@@ -112,6 +112,10 @@ public class ShopProduct {
     @OneToMany(mappedBy = "parentShopProduct", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<ProductVariant> variants = new java.util.ArrayList<>();
 
+    // Attribute types for this product (e.g. Size, Colour) — only when hasVariants = true
+    @OneToMany(mappedBy = "shopProduct", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<VariantAttributeType> attributeTypes = new java.util.ArrayList<>();
+
     // ─── STATUS FLAGS ────────────────────────────────────────────────────────
 
     // true = Admin is selling this product, false = deactivated/not selling

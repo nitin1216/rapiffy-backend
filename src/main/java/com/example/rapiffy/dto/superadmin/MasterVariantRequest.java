@@ -3,14 +3,13 @@ package com.example.rapiffy.dto.superadmin;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.Map;
 
 @Data
 public class MasterVariantRequest {
 
     private String variantName;
     private String brand;
-    private String unit;
-    private String unitValue;
     private String shortDescription;
     private String longDescription;
     private Double mrp;
@@ -20,4 +19,7 @@ public class MasterVariantRequest {
     private String imageUrl;
     private LocalDate expiryDate;
     private String gstSlab;
+
+    // e.g. { "Size": "8", "Colour": "Red" }
+    private Map<String, String> attributes;
 }

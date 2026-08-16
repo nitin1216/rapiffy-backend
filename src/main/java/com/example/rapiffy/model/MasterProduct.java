@@ -82,6 +82,10 @@ public class MasterProduct {
     @OneToMany(mappedBy = "parentMasterProduct", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<MasterProductVariant> variants = new java.util.ArrayList<>();
 
+    // Attribute types for this product (e.g. Size, Colour) — only when hasVariants = true
+    @OneToMany(mappedBy = "masterProduct", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<VariantAttributeType> attributeTypes = new java.util.ArrayList<>();
+
     // SuperAdmin can deactivate a product globally
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;

@@ -19,5 +19,7 @@ public class AddMasterProductRequest {
     private String shortDescription;
     private String longDescription;
     private boolean hasVariants = false;
+    // e.g. ["Size", "Colour"] — required when hasVariants = true
+    private List<String> attributeTypes;
     private List<MasterVariantRequest> variants;
 }

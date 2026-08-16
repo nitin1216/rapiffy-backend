@@ -1,5 +1,6 @@
 package com.example.rapiffy.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -34,6 +35,7 @@ public class ProductVariant {
     private Long shopProductId;
 
     // Parent ShopProduct this variant belongs to
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_shop_product_id", nullable = false)
     private ShopProduct parentShopProduct;
@@ -45,12 +47,6 @@ public class ProductVariant {
 
     @Column(name = "brand")
     private String brand;
-
-    @Column(name = "unit")
-    private String unit;
-
-    @Column(name = "unit_value")
-    private String unitValue;
 
     @Column(name = "short_description")
     private String shortDescription;
@@ -78,6 +74,10 @@ public class ProductVariant {
 
     @Column(name = "gst_slab")
     private String gstSlab;
+
+    // Attribute values for this variant (e.g. Size=8, Colour=Red)
+    @OneToMany(mappedBy = "productVariant", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<VariantAttributeValue> attributeValues = new java.util.ArrayList<>();
 
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;

@@ -13,6 +13,8 @@ import com.example.rapiffy.model.*;
 import com.example.rapiffy.repos.*;
 import com.example.rapiffy.config.RazorpayRestClient;
 import com.example.rapiffy.model.ProductVariant;
+import com.example.rapiffy.model.VariantAttributeType;
+import com.example.rapiffy.model.VariantAttributeValue;
 import com.example.rapiffy.services.SuperAdminService;
 import com.razorpay.RazorpayClient;
 import com.razorpay.RazorpayException;
@@ -38,6 +40,8 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     private final ShopProductRepository shopProductRepository;
     private final MasterProductVariantRepository masterProductVariantRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final VariantAttributeTypeRepository variantAttributeTypeRepository;
+    private final VariantAttributeValueRepository variantAttributeValueRepository;
     private final RazorpayClient razorpayClient;
     private final RazorpayRestClient razorpayRestClient;
     private final BCryptPasswordEncoder passwordEncoder;
@@ -50,6 +54,8 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                                  ShopProductRepository shopProductRepository,
                                  MasterProductVariantRepository masterProductVariantRepository,
                                  ProductVariantRepository productVariantRepository,
+                                 VariantAttributeTypeRepository variantAttributeTypeRepository,
+                                 VariantAttributeValueRepository variantAttributeValueRepository,
                                  RazorpayClient razorpayClient,
                                  RazorpayRestClient razorpayRestClient) {
         this.categoryRepository = categoryRepository;
@@ -60,6 +66,8 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         this.shopProductRepository = shopProductRepository;
         this.masterProductVariantRepository = masterProductVariantRepository;
         this.productVariantRepository = productVariantRepository;
+        this.variantAttributeTypeRepository = variantAttributeTypeRepository;
+        this.variantAttributeValueRepository = variantAttributeValueRepository;
         this.razorpayClient = razorpayClient;
         this.razorpayRestClient = razorpayRestClient;
         this.passwordEncoder = new BCryptPasswordEncoder();
@@ -168,7 +176,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
 
         if (request.getVariants() != null && !request.getVariants().isEmpty()) {
             mp.setHasVariants(true);
-            syncMasterVariants(mp, request.getVariants());
+            syncMasterVariants(mp, request.getAttributeTypes(), request.getVariants());
             masterProductRepository.save(mp);
         }
         pushToMatchingShops(List.of(mp), subCategory);
@@ -280,7 +288,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         }
 
         if (request.getVariants() != null) {
-            syncMasterVariants(mp, request.getVariants());
+            syncMasterVariants(mp, request.getAttributeTypes(), request.getVariants());
         }
 
         masterProductRepository.save(mp);
@@ -523,14 +531,29 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         if (!parent.isHasVariants())
             throw new ApiException("Master product does not have variants enabled. Set hasVariants=true first.", HttpStatus.BAD_REQUEST);
 
+        // Save attribute types (Size, Colour, etc.) — clear old ones first
+        parent.getAttributeTypes().clear();
+        masterProductRepository.save(parent);
+
+        List<VariantAttributeType> savedTypes = new ArrayList<>();
+        for (int i = 0; i < request.getAttributeTypes().size(); i++) {
+            VariantAttributeType type = new VariantAttributeType();
+            type.setAttributeName(request.getAttributeTypes().get(i));
+            type.setDisplayOrder(i + 1);
+            type.setMasterProduct(parent);
+            savedTypes.add(variantAttributeTypeRepository.save(type));
+        }
+
+        // Build a map of attributeName → VariantAttributeType for quick lookup
+        Map<String, VariantAttributeType> typeMap = savedTypes.stream()
+            .collect(Collectors.toMap(VariantAttributeType::getAttributeName, t -> t));
+
         List<MasterProductVariant> saved = new ArrayList<>();
         for (MasterVariantRequest vr : request.getVariants()) {
             MasterProductVariant variant = new MasterProductVariant();
             variant.setParentMasterProduct(parent);
             variant.setVariantName(vr.getVariantName());
             variant.setBrand(vr.getBrand());
-            variant.setUnit(vr.getUnit());
-            variant.setUnitValue(vr.getUnitValue());
             variant.setShortDescription(vr.getShortDescription());
             variant.setLongDescription(vr.getLongDescription());
             variant.setMrp(vr.getMrp());
@@ -541,7 +564,21 @@ public class SuperAdminServiceImpl implements SuperAdminService {
             variant.setExpiryDate(vr.getExpiryDate());
             variant.setGstSlab(vr.getGstSlab());
             variant.setActive(true);
-            saved.add(masterProductVariantRepository.save(variant));
+            MasterProductVariant savedVariant = masterProductVariantRepository.save(variant);
+
+            // Save attribute values (e.g. Size=8, Colour=Red)
+            if (vr.getAttributes() != null) {
+                for (Map.Entry<String, String> entry : vr.getAttributes().entrySet()) {
+                    VariantAttributeType attrType = typeMap.get(entry.getKey());
+                    if (attrType == null) continue;
+                    VariantAttributeValue attrValue = new VariantAttributeValue();
+                    attrValue.setAttributeType(attrType);
+                    attrValue.setAttributeValue(entry.getValue());
+                    attrValue.setMasterProductVariant(savedVariant);
+                    variantAttributeValueRepository.save(attrValue);
+                }
+            }
+            saved.add(savedVariant);
         }
 
         List<MasterVariantActionResponse.VariantInfo> infos = saved.stream()
@@ -558,8 +595,6 @@ public class SuperAdminServiceImpl implements SuperAdminService {
 
         if (request.getVariantName() != null) variant.setVariantName(request.getVariantName());
         if (request.getBrand() != null) variant.setBrand(request.getBrand());
-        if (request.getUnit() != null) variant.setUnit(request.getUnit());
-        if (request.getUnitValue() != null) variant.setUnitValue(request.getUnitValue());
         if (request.getShortDescription() != null) variant.setShortDescription(request.getShortDescription());
         if (request.getLongDescription() != null) variant.setLongDescription(request.getLongDescription());
         if (request.getMrp() != null) variant.setMrp(request.getMrp());
@@ -569,6 +604,18 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         if (request.getImageUrl() != null) variant.setImageUrl(request.getImageUrl());
         if (request.getExpiryDate() != null) variant.setExpiryDate(request.getExpiryDate());
         if (request.getGstSlab() != null) variant.setGstSlab(request.getGstSlab());
+
+        // Update attribute values if provided
+        if (request.getAttributes() != null && !request.getAttributes().isEmpty()) {
+            List<VariantAttributeValue> existingValues = variantAttributeValueRepository.findByMasterProductVariantId(variantId);
+            for (VariantAttributeValue existing : existingValues) {
+                String attrName = existing.getAttributeType().getAttributeName();
+                if (request.getAttributes().containsKey(attrName)) {
+                    existing.setAttributeValue(request.getAttributes().get(attrName));
+                    variantAttributeValueRepository.save(existing);
+                }
+            }
+        }
 
         masterProductVariantRepository.save(variant);
         return new SuperAdminActionResponse("Master variant updated successfully");
@@ -721,14 +768,26 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         sp.setActive(true);
         ShopProduct savedSp = shopProductRepository.save(sp);
 
+        // Copy attribute types from master product to shop product
+        for (VariantAttributeType masterType : mp.getAttributeTypes()) {
+            VariantAttributeType shopType = new VariantAttributeType();
+            shopType.setAttributeName(masterType.getAttributeName());
+            shopType.setDisplayOrder(masterType.getDisplayOrder());
+            shopType.setShopProduct(savedSp);
+            variantAttributeTypeRepository.save(shopType);
+        }
+
         if (mp.isHasVariants() && !mp.getVariants().isEmpty()) {
+            // Build shopType map for attribute value linking
+            List<VariantAttributeType> shopTypes = variantAttributeTypeRepository.findByShopProductIdOrderByDisplayOrder(savedSp.getId());
+            Map<String, VariantAttributeType> shopTypeMap = shopTypes.stream()
+                .collect(Collectors.toMap(VariantAttributeType::getAttributeName, t -> t));
+
             for (MasterProductVariant mv : mp.getVariants()) {
                 ProductVariant pv = new ProductVariant();
                 pv.setParentShopProduct(savedSp);
                 pv.setVariantName(mv.getVariantName());
                 pv.setBrand(mv.getBrand());
-                pv.setUnit(mv.getUnit());
-                pv.setUnitValue(mv.getUnitValue());
                 pv.setMrp(mv.getMrp());
                 pv.setShortDescription(mv.getShortDescription());
                 pv.setLongDescription(mv.getLongDescription());
@@ -737,9 +796,20 @@ public class SuperAdminServiceImpl implements SuperAdminService {
                 pv.setSellingPrice(0.0);
                 pv.setStockQuantity(0);
                 pv.setActive(true);
-                ProductVariant saved = productVariantRepository.save(pv);
-                saved.setShopProductId(saved.getId());
-                productVariantRepository.save(saved);
+                ProductVariant savedPv = productVariantRepository.save(pv);
+                savedPv.setShopProductId(savedPv.getId());
+                productVariantRepository.save(savedPv);
+
+                // Copy attribute values from master variant to shop variant
+                for (VariantAttributeValue masterVal : mv.getAttributeValues()) {
+                    VariantAttributeType shopType = shopTypeMap.get(masterVal.getAttributeType().getAttributeName());
+                    if (shopType == null) continue;
+                    VariantAttributeValue shopVal = new VariantAttributeValue();
+                    shopVal.setAttributeType(shopType);
+                    shopVal.setAttributeValue(masterVal.getAttributeValue());
+                    shopVal.setProductVariant(savedPv);
+                    variantAttributeValueRepository.save(shopVal);
+                }
             }
         }
 
@@ -791,33 +861,60 @@ public class SuperAdminServiceImpl implements SuperAdminService {
     }
 
     /**
-     * Sync master product variants:
-     * - Has id → update existing
-     * - No id → add new
-     * - Missing from list → remove
+     * Sync master product variants + attribute types/values.
+     * Clears existing variants and attribute types, then recreates from request.
      */
-    private void syncMasterVariants(MasterProduct mp, List<MasterVariantRequest> variantRequests) {
-        Map<Long, MasterProductVariant> existingMap = mp.getVariants().stream()
-            .collect(Collectors.toMap(MasterProductVariant::getId, v -> v));
-
-        List<MasterProductVariant> updatedList = new ArrayList<>();
-
-        for (MasterVariantRequest vr : variantRequests) {
-            // Add new only — update via dedicated updateMasterVariant API
-            MasterProductVariant newVariant = new MasterProductVariant();
-            newVariant.setParentMasterProduct(mp);
-            newVariant.setVariantName(vr.getVariantName());
-            newVariant.setBrand(vr.getBrand());
-            newVariant.setUnit(vr.getUnit());
-            newVariant.setUnitValue(vr.getUnitValue());
-            newVariant.setMrp(vr.getMrp());
-            newVariant.setImageUrl(vr.getImageUrl());
-            newVariant.setActive(true);
-            updatedList.add(newVariant);
-        }
-
+    private void syncMasterVariants(MasterProduct mp, List<String> attributeTypeNames, List<MasterVariantRequest> variantRequests) {
+        // Clear existing
         mp.getVariants().clear();
-        mp.getVariants().addAll(updatedList);
-        mp.setHasVariants(!updatedList.isEmpty());
+        mp.getAttributeTypes().clear();
+        masterProductRepository.save(mp);
+
+        // Save attribute types (e.g. Size, Colour)
+        List<VariantAttributeType> savedTypes = new ArrayList<>();
+        if (attributeTypeNames != null) {
+            for (int i = 0; i < attributeTypeNames.size(); i++) {
+                VariantAttributeType type = new VariantAttributeType();
+                type.setAttributeName(attributeTypeNames.get(i));
+                type.setDisplayOrder(i + 1);
+                type.setMasterProduct(mp);
+                savedTypes.add(variantAttributeTypeRepository.save(type));
+            }
+        }
+        Map<String, VariantAttributeType> typeMap = savedTypes.stream()
+            .collect(Collectors.toMap(VariantAttributeType::getAttributeName, t -> t));
+
+        // Save variants + their attribute values
+        for (MasterVariantRequest vr : variantRequests) {
+            MasterProductVariant variant = new MasterProductVariant();
+            variant.setParentMasterProduct(mp);
+            variant.setVariantName(vr.getVariantName());
+            variant.setBrand(vr.getBrand());
+            variant.setShortDescription(vr.getShortDescription());
+            variant.setLongDescription(vr.getLongDescription());
+            variant.setMrp(vr.getMrp());
+            variant.setSellingPrice(vr.getSellingPrice());
+            variant.setStockQuantity(vr.getStockQuantity());
+            variant.setThresholdQuantity(vr.getThresholdQuantity());
+            variant.setImageUrl(vr.getImageUrl());
+            variant.setExpiryDate(vr.getExpiryDate());
+            variant.setGstSlab(vr.getGstSlab());
+            variant.setActive(true);
+            MasterProductVariant saved = masterProductVariantRepository.save(variant);
+
+            if (vr.getAttributes() != null) {
+                for (Map.Entry<String, String> entry : vr.getAttributes().entrySet()) {
+                    VariantAttributeType attrType = typeMap.get(entry.getKey());
+                    if (attrType == null) continue;
+                    VariantAttributeValue attrValue = new VariantAttributeValue();
+                    attrValue.setAttributeType(attrType);
+                    attrValue.setAttributeValue(entry.getValue());
+                    attrValue.setMasterProductVariant(saved);
+                    variantAttributeValueRepository.save(attrValue);
+                }
+            }
+            mp.getVariants().add(variant);
+        }
+        mp.setHasVariants(!variantRequests.isEmpty());
     }
 }

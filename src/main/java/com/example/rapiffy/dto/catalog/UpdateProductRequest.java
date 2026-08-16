@@ -32,5 +32,8 @@ public class UpdateProductRequest {
 
     // Variants — null means don't touch variants, empty list means remove all
     private Boolean hasVariants;
+
+    // e.g. ["Size", "Colour"] — replaces existing attribute types when provided
+    private List<String> attributeTypes;
     private List<VariantRequest> variants;
 }

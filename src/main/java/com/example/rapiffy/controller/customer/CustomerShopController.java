@@ -4,6 +4,7 @@ import com.example.rapiffy.dto.customer.CustomerCatalogResponse;
 import com.example.rapiffy.dto.customer.CustomerProductResponse;
 import com.example.rapiffy.dto.customer.CustomerVariantResponse;
 import com.example.rapiffy.dto.customer.NearbyShopResponse;
+import com.example.rapiffy.dto.customer.VariantFilterRequest;
 import com.example.rapiffy.model.Category;
 import com.example.rapiffy.repos.CategoryRepository;
 import com.example.rapiffy.services.customer.CustomerShopService;
@@ -14,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @Tag(name = "Customer - Shops & Products", description = "Public APIs for browsing nearby shops and products. No login required.")
 @RestController
@@ -92,5 +94,25 @@ public class CustomerShopController {
     @GetMapping("/products/{shopProductId}/variants")
     public ResponseEntity<List<CustomerVariantResponse>> getVariantsByProduct(@PathVariable Long shopProductId) {
         return ResponseEntity.ok(customerShopService.getVariantsByParentShopProductId(shopProductId));
+    }
+
+    @Operation(
+        summary = "Get all available attribute values for a product",
+        description = "Returns all distinct values per attribute (e.g. Size: [8,9,10], Colour: [Red,Black]). Use on initial page load."
+    )
+    @GetMapping("/products/{shopProductId}/attributes")
+    public ResponseEntity<Map<String, List<String>>> getProductAttributes(@PathVariable Long shopProductId) {
+        return ResponseEntity.ok(customerShopService.getProductAttributes(shopProductId));
+    }
+
+    @Operation(
+        summary = "Filter variants by selected attributes",
+        description = "Pass selected attributes (e.g. {Size:8}) to get matching variants. Returns exact variant when all attributes are selected."
+    )
+    @PostMapping("/products/{shopProductId}/variants/filter")
+    public ResponseEntity<List<CustomerVariantResponse>> filterVariants(
+            @PathVariable Long shopProductId,
+            @RequestBody VariantFilterRequest request) {
+        return ResponseEntity.ok(customerShopService.filterVariants(shopProductId, request.getAttributes()));
     }
 }

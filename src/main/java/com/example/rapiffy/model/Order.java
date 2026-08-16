@@ -2,6 +2,7 @@ package com.example.rapiffy.model;
 
 import com.example.rapiffy.enums.CancelledBy;
 import com.example.rapiffy.enums.OrderStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -35,16 +36,17 @@ public class Order {
     // ─── REFERENCES ──────────────────────────────────────────────────────────
 
     // Parent order this sub-order belongs to
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_order_id")
     private ParentOrder parentOrder;
 
-    // Customer who placed the order
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)
     private User customer;
 
-    // Shop (Admin) this sub-order belongs to
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shop_id", nullable = false)
     private Profile shop;

@@ -3,6 +3,7 @@ package com.example.rapiffy.controller;
 import com.example.rapiffy.dto.GoogleAuthRequest;
 import com.example.rapiffy.dto.LoginRequest;
 import com.example.rapiffy.dto.LoginResponse;
+import com.example.rapiffy.dto.RefreshTokenRequest;
 import com.example.rapiffy.dto.SignUpRequest;
 import com.example.rapiffy.dto.SignUpResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,4 +51,20 @@ public interface LoginSignUpController {
     @Operation(summary = "Delivery person — login or register with Google")
     @PostMapping("/google/delivery")
     ResponseEntity<LoginResponse> googleLoginDelivery(@RequestBody GoogleAuthRequest request);
+
+    // ── Refresh & Logout ──────────────────────────────────────────────────────
+
+    @Operation(
+        summary = "Refresh access token",
+        description = "Pass the refreshToken to get a new accessToken + rotated refreshToken. Store the new refreshToken."
+    )
+    @PostMapping("/refresh")
+    ResponseEntity<LoginResponse> refresh(@RequestBody RefreshTokenRequest request);
+
+    @Operation(
+        summary = "Logout",
+        description = "Invalidates the refresh token. Customer will need to login again after this."
+    )
+    @PostMapping("/logout")
+    ResponseEntity<Void> logout(@RequestBody RefreshTokenRequest request);
 }

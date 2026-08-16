@@ -1,6 +1,8 @@
 package com.example.rapiffy.exceptions;
 
 import com.example.rapiffy.dto.ApiErrorResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -11,7 +13,8 @@ import java.time.LocalDateTime;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // Handle our custom ApiException → return its status + message
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiErrorResponse> handleApiException(ApiException ex) {
         ApiErrorResponse error = new ApiErrorResponse(
@@ -22,14 +25,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ex.getStatus()).body(error);
     }
 
-    // Handle any unexpected exception → return 500 with actual cause (dev mode)
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGenericException(Exception ex) {
-        // Log the full stack trace so we can see the real error in console
-        ex.printStackTrace();
+        log.error("Unexpected error: {}", ex.getMessage(), ex);
         ApiErrorResponse error = new ApiErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                ex.getClass().getSimpleName() + ": " + ex.getMessage(),
+                "An unexpected error occurred. Please try again later.",
                 LocalDateTime.now()
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);

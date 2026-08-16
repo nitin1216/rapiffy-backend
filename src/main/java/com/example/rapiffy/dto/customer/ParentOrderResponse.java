@@ -15,6 +15,7 @@ public class ParentOrderResponse {
     // Delivery info (shared across all sub-orders)
     private String deliveryType;
     private String deliveryAddress;
+    private String deliveryInstruction;
 
     // Pricing (sum of all sub-orders)
     private Double subtotal;

@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,13 +23,19 @@ public class AdminOrderServiceImpl implements AdminOrderService {
     private final OrderRepository orderRepository;
     private final ShopProductRepository shopProductRepository;
     private final ProfileRepository profileRepository;
+    private final ProductVariantRepository productVariantRepository;
+    private final ParentOrderRepository parentOrderRepository;
 
     public AdminOrderServiceImpl(OrderRepository orderRepository,
                                  ShopProductRepository shopProductRepository,
-                                 ProfileRepository profileRepository) {
+                                 ProfileRepository profileRepository,
+                                 ProductVariantRepository productVariantRepository,
+                                 ParentOrderRepository parentOrderRepository) {
         this.orderRepository = orderRepository;
         this.shopProductRepository = shopProductRepository;
         this.profileRepository = profileRepository;
+        this.productVariantRepository = productVariantRepository;
+        this.parentOrderRepository = parentOrderRepository;
     }
 
     @Override
@@ -49,7 +56,6 @@ public class AdminOrderServiceImpl implements AdminOrderService {
     }
 
     @Override
-    @Transactional
     public OrderDetailResponse confirmOrder(Long userId, Long orderId) {
         Profile shop = getShop(userId);
         Order order = getOrder(orderId, shop);
@@ -57,21 +63,31 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         if (order.getStatus() != OrderStatus.PENDING)
             throw new ApiException("Order is not in PENDING state", HttpStatus.BAD_REQUEST);
 
-        // Deduct stock from product
+        // Deduct stock from product or variant
         for (OrderItem item : order.getItems()) {
-            ShopProduct sp = item.getShopProduct();
-            if (sp == null) continue;
-            if (sp.getStockQuantity() < item.getQuantity())
-                throw new ApiException("Insufficient stock for: " + item.getProductName(), HttpStatus.BAD_REQUEST);
-            sp.setStockQuantity(sp.getStockQuantity() - item.getQuantity());
-            shopProductRepository.save(sp);
+            if (item.getVariantId() != null) {
+                productVariantRepository.findById(item.getVariantId()).ifPresent(variant -> {
+                    if (variant.getStockQuantity() < item.getQuantity())
+                        throw new ApiException("Insufficient stock for: " + item.getProductName(), HttpStatus.BAD_REQUEST);
+                    variant.setStockQuantity(variant.getStockQuantity() - item.getQuantity());
+                    productVariantRepository.save(variant);
+                });
+            } else {
+                ShopProduct sp = item.getShopProduct();
+                if (sp == null) continue;
+                if (sp.getStockQuantity() < item.getQuantity())
+                    throw new ApiException("Insufficient stock for: " + item.getProductName(), HttpStatus.BAD_REQUEST);
+                sp.setStockQuantity(sp.getStockQuantity() - item.getQuantity());
+                shopProductRepository.save(sp);
+            }
         }
 
         order.setStatus(OrderStatus.CONFIRMED);
-        if (order.getInvoiceId() == null) {
+        if (order.getInvoiceId() == null)
             order.setInvoiceId("INV-" + java.time.LocalDate.now().toString().replace("-", "") + "-" + String.format("%04d", order.getId()));
-        }
-        return toDetail(orderRepository.save(order));
+        orderRepository.save(order);
+        syncParentOrderStatus(order);
+        return toDetail(order);
     }
 
     @Override
@@ -83,7 +99,9 @@ public class AdminOrderServiceImpl implements AdminOrderService {
             throw new ApiException("Order must be CONFIRMED before marking READY", HttpStatus.BAD_REQUEST);
 
         order.setStatus(OrderStatus.READY);
-        return toDetail(orderRepository.save(order));
+        orderRepository.save(order);
+        syncParentOrderStatus(order);
+        return toDetail(order);
     }
 
     @Override
@@ -95,7 +113,9 @@ public class AdminOrderServiceImpl implements AdminOrderService {
             throw new ApiException("Order must be READY before marking OUT_FOR_DELIVERY", HttpStatus.BAD_REQUEST);
 
         order.setStatus(OrderStatus.OUT_FOR_DELIVERY);
-        return toDetail(orderRepository.save(order));
+        orderRepository.save(order);
+        syncParentOrderStatus(order);
+        return toDetail(order);
     }
 
     @Override
@@ -107,7 +127,9 @@ public class AdminOrderServiceImpl implements AdminOrderService {
             throw new ApiException("Order must be OUT_FOR_DELIVERY before marking DELIVERED", HttpStatus.BAD_REQUEST);
 
         order.setStatus(OrderStatus.DELIVERED);
-        return toDetail(orderRepository.save(order));
+        orderRepository.save(order);
+        syncParentOrderStatus(order);
+        return toDetail(order);
     }
 
     @Override
@@ -174,6 +196,31 @@ public class AdminOrderServiceImpl implements AdminOrderService {
 
     private String nullSafe(String value) {
         return value != null ? value : "";
+    }
+
+    private void syncParentOrderStatus(Order updatedSubOrder) {
+        ParentOrder parent = updatedSubOrder.getParentOrder();
+        if (parent == null) return;
+
+        List<Order> allSubOrders = orderRepository.findByParentOrder(parent);
+
+        // Priority order — least advanced status wins
+        List<OrderStatus> priority = List.of(
+            OrderStatus.PAYMENT_PENDING,
+            OrderStatus.PENDING,
+            OrderStatus.CONFIRMED,
+            OrderStatus.READY,
+            OrderStatus.OUT_FOR_DELIVERY,
+            OrderStatus.DELIVERED
+        );
+
+        OrderStatus lowestStatus = allSubOrders.stream()
+            .map(Order::getStatus)
+            .min(Comparator.comparingInt(priority::indexOf))
+            .orElse(updatedSubOrder.getStatus());
+
+        parent.setStatus(lowestStatus);
+        parentOrderRepository.save(parent);
     }
 
     private Profile getShop(Long userId) {

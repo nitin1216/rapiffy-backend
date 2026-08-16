@@ -6,7 +6,9 @@ import com.example.rapiffy.exceptions.ApiException;
 import com.example.rapiffy.model.*;
 import com.example.rapiffy.repos.*;
 import com.example.rapiffy.services.customer.CustomerCartService;
+import com.example.rapiffy.services.customer.CustomerOrderService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,14 +17,31 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class CustomerCartServiceImpl implements CustomerCartService {
 
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final ShopProductRepository shopProductRepository;
+    private final ProductVariantRepository productVariantRepository;
     private final UserRepository userRepository;
     private final CustomerAddressRepository customerAddressRepository;
+    private final CustomerOrderService customerOrderService;
+
+    public CustomerCartServiceImpl(CartRepository cartRepository,
+                                   CartItemRepository cartItemRepository,
+                                   ShopProductRepository shopProductRepository,
+                                   ProductVariantRepository productVariantRepository,
+                                   UserRepository userRepository,
+                                   CustomerAddressRepository customerAddressRepository,
+                                   @Lazy CustomerOrderService customerOrderService) {
+        this.cartRepository = cartRepository;
+        this.cartItemRepository = cartItemRepository;
+        this.shopProductRepository = shopProductRepository;
+        this.productVariantRepository = productVariantRepository;
+        this.userRepository = userRepository;
+        this.customerAddressRepository = customerAddressRepository;
+        this.customerOrderService = customerOrderService;
+    }
 
     @Override
     public CartResponse getCart(Long userId) {
@@ -36,12 +55,24 @@ public class CustomerCartServiceImpl implements CustomerCartService {
     @Transactional
     public CartResponse addToCart(Long userId, AddToCartRequest request) {
         User customer = getUser(userId);
+        Long requestedId = request.getShopProductId();
 
-        ShopProduct sp = shopProductRepository.findById(request.getShopProductId())
-                .orElseThrow(() -> new ApiException("Product not found", HttpStatus.NOT_FOUND));
+        // Try ShopProduct first, then ProductVariant
+        ShopProduct sp = shopProductRepository.findById(requestedId).orElse(null);
+        ProductVariant variant = null;
 
-        if (!sp.isActive())
-            throw new ApiException("Product is not available: " + sp.getProductName(), HttpStatus.BAD_REQUEST);
+        if (sp == null || sp.isHasVariants()) {
+            // Either not found as ShopProduct, or it's a parent with variants
+            // → must be a variant's shopProductId
+            variant = productVariantRepository.findByShopProductId(requestedId)
+                    .orElseThrow(() -> new ApiException("Product not found", HttpStatus.NOT_FOUND));
+            if (!variant.isActive())
+                throw new ApiException("Variant is not available: " + variant.getVariantName(), HttpStatus.BAD_REQUEST);
+            sp = variant.getParentShopProduct();
+        } else {
+            if (!sp.isActive())
+                throw new ApiException("Product is not available: " + sp.getProductName(), HttpStatus.BAD_REQUEST);
+        }
 
         // ─── DELIVERY RANGE VALIDATION ───────────────────────────────────────
         Profile shop = sp.getShop();
@@ -68,18 +99,34 @@ public class CustomerCartServiceImpl implements CustomerCartService {
             return cartRepository.save(newCart);
         });
 
-        // Deduplicate: same shopProduct → increase qty
-        Optional<CartItem> existing = cartItemRepository.findByCartAndShopProduct(cart, sp);
-        if (existing.isPresent()) {
-            CartItem item = existing.get();
-            item.setQuantity(item.getQuantity() + request.getQuantity());
-            cartItemRepository.save(item);
+        if (variant != null) {
+            // Variant item — dedup by variant
+            Optional<CartItem> existing = cartItemRepository.findByCartAndProductVariant(cart, variant);
+            if (existing.isPresent()) {
+                CartItem item = existing.get();
+                item.setQuantity(item.getQuantity() + request.getQuantity());
+                cartItemRepository.save(item);
+            } else {
+                CartItem item = new CartItem();
+                item.setCart(cart);
+                item.setProductVariant(variant);
+                item.setQuantity(request.getQuantity());
+                cartItemRepository.save(item);
+            }
         } else {
-            CartItem item = new CartItem();
-            item.setCart(cart);
-            item.setShopProduct(sp);
-            item.setQuantity(request.getQuantity());
-            cartItemRepository.save(item);
+            // Plain product — dedup by shopProduct
+            Optional<CartItem> existing = cartItemRepository.findByCartAndShopProduct(cart, sp);
+            if (existing.isPresent()) {
+                CartItem item = existing.get();
+                item.setQuantity(item.getQuantity() + request.getQuantity());
+                cartItemRepository.save(item);
+            } else {
+                CartItem item = new CartItem();
+                item.setCart(cart);
+                item.setShopProduct(sp);
+                item.setQuantity(request.getQuantity());
+                cartItemRepository.save(item);
+            }
         }
 
         return toCartResponse(cartRepository.findByCustomer(customer).get());
@@ -102,10 +149,65 @@ public class CustomerCartServiceImpl implements CustomerCartService {
         User customer = getUser(userId);
         Cart cart = getCart(customer);
         CartItem item = getCartItem(cartItemId, cart);
-        cartItemRepository.delete(item);
-        Cart updated = cartRepository.findByCustomer(customer).get();
-        if (updated.getItems().isEmpty()) return emptyCart();
-        return toCartResponse(updated);
+        cart.getItems().remove(item);
+        cartRepository.save(cart);
+        if (cart.getItems().isEmpty()) return emptyCart();
+        return toCartResponse(cart);
+    }
+
+    @Override
+    @Transactional
+    public ParentOrderResponse checkoutFromCart(Long userId, CheckoutFromCartRequest request) {
+        User customer = getUser(userId);
+        Cart cart = getCart(customer);
+
+        List<CartItem> selectedItems = request.getCartItemIds().stream()
+                .map(id -> {
+                    CartItem item = cartItemRepository.findById(id)
+                            .orElseThrow(() -> new ApiException("Cart item not found: " + id, HttpStatus.NOT_FOUND));
+                    if (!item.getCart().getId().equals(cart.getId()))
+                        throw new ApiException("Access denied for cart item: " + id, HttpStatus.FORBIDDEN);
+                    return item;
+                })
+                .toList();
+
+        List<PlaceOrderItemRequest> items = selectedItems.stream()
+                .map(ci -> {
+                    PlaceOrderItemRequest item = new PlaceOrderItemRequest();
+                    if (ci.getProductVariant() != null)
+                        item.setShopProductId(ci.getProductVariant().getShopProductId());
+                    else
+                        item.setShopProductId(ci.getShopProduct().getId());
+                    item.setQuantity(ci.getQuantity());
+                    return item;
+                })
+                .toList();
+
+        // Resolve delivery address
+        String deliveryAddress = null;
+        if (request.getAddressId() != null) {
+            CustomerAddress address = customerAddressRepository.findById(request.getAddressId())
+                    .orElseThrow(() -> new ApiException("Address not found", HttpStatus.NOT_FOUND));
+            if (!address.getCustomer().getId().equals(userId))
+                throw new ApiException("Access denied for this address", HttpStatus.FORBIDDEN);
+            deliveryAddress = buildAddressString(address);
+        } else {
+            CustomerAddress address = customerAddressRepository.findByCustomerAndIsDefault(customer, true)
+                    .orElseThrow(() -> new ApiException(
+                            "No address selected and no default address saved.", HttpStatus.BAD_REQUEST));
+            deliveryAddress = buildAddressString(address);
+        }
+
+        PlaceOrderRequest orderRequest = new PlaceOrderRequest();
+        orderRequest.setDeliveryType("DELIVERY");
+        orderRequest.setDeliveryAddress(deliveryAddress);
+        orderRequest.setDeliveryInstruction(request.getDeliveryInstruction());
+        orderRequest.setItems(items);
+        orderRequest.setPaymentMethod(request.getPaymentMethod());
+
+        cartItemRepository.deleteAll(selectedItems);
+
+        return customerOrderService.placeOrder(userId, orderRequest);
     }
 
     @Override
@@ -148,34 +250,57 @@ public class CustomerCartServiceImpl implements CustomerCartService {
 
     private CartResponse toCartResponse(Cart cart) {
         Map<Long, List<CartItem>> byShop = cart.getItems().stream()
-                .collect(Collectors.groupingBy(i -> i.getShopProduct().getShop().getId()));
+                .collect(Collectors.groupingBy(i -> {
+                    if (i.getProductVariant() != null)
+                        return i.getProductVariant().getParentShopProduct().getShop().getId();
+                    return i.getShopProduct().getShop().getId();
+                }));
 
         List<CartShopGroup> shopGroups = new ArrayList<>();
         double grandTotal = 0.0;
         int totalItems = 0;
 
         for (Map.Entry<Long, List<CartItem>> entry : byShop.entrySet()) {
-            Profile shop = entry.getValue().get(0).getShopProduct().getShop();
+            CartItem first = entry.getValue().get(0);
+            Profile shop = first.getProductVariant() != null
+                    ? first.getProductVariant().getParentShopProduct().getShop()
+                    : first.getShopProduct().getShop();
             List<CartItemResponse> itemResponses = new ArrayList<>();
             double shopTotal = 0.0;
 
             for (CartItem ci : entry.getValue()) {
-                ShopProduct sp = ci.getShopProduct();
-                double itemTotal = Math.round(sp.getSellingPrice() * ci.getQuantity() * 100.0) / 100.0;
-                shopTotal += itemTotal;
-                totalItems++;
-
+                double sellingPrice;
                 CartItemResponse ir = new CartItemResponse();
                 ir.setCartItemId(ci.getId());
-                ir.setShopProductId(sp.getId());
-                ir.setProductName(sp.getProductName());
-                ir.setBrand(sp.getBrand());
-                ir.setUnit(sp.getUnit());
-                ir.setUnitValue(sp.getUnitValue());
-                ir.setImageUrl(sp.getImageUrl());
-                ir.setMrp(sp.getMrp());
-                ir.setSellingPrice(sp.getSellingPrice());
                 ir.setQuantity(ci.getQuantity());
+
+                if (ci.getProductVariant() != null) {
+                    ProductVariant v = ci.getProductVariant();
+                    sellingPrice = v.getSellingPrice();
+                    ir.setShopProductId(v.getShopProductId());
+                    ir.setProductName(v.getVariantName());
+                    ir.setBrand(v.getBrand());
+                    ir.setUnit(v.getParentShopProduct().getUnit());
+                    ir.setUnitValue(v.getParentShopProduct().getUnitValue());
+                    ir.setImageUrl(v.getImageUrl());
+                    ir.setMrp(v.getMrp());
+                    ir.setSellingPrice(sellingPrice);
+                } else {
+                    ShopProduct sp = ci.getShopProduct();
+                    sellingPrice = sp.getSellingPrice();
+                    ir.setShopProductId(sp.getId());
+                    ir.setProductName(sp.getProductName());
+                    ir.setBrand(sp.getBrand());
+                    ir.setUnit(sp.getUnit());
+                    ir.setUnitValue(sp.getUnitValue());
+                    ir.setImageUrl(sp.getImageUrl());
+                    ir.setMrp(sp.getMrp());
+                    ir.setSellingPrice(sellingPrice);
+                }
+
+                double itemTotal = Math.round(sellingPrice * ci.getQuantity() * 100.0) / 100.0;
+                shopTotal += itemTotal;
+                totalItems++;
                 ir.setItemTotal(itemTotal);
                 itemResponses.add(ir);
             }
@@ -194,6 +319,18 @@ public class CustomerCartServiceImpl implements CustomerCartService {
         r.setTotalAmount(Math.round(grandTotal * 100.0) / 100.0);
         r.setShops(shopGroups);
         return r;
+    }
+
+    private String buildAddressString(CustomerAddress address) {
+        return String.join(", ",
+                nullSafe(address.getAddress().getAddressLine1()),
+                nullSafe(address.getAddress().getCity()),
+                nullSafe(address.getAddress().getState()),
+                nullSafe(address.getAddress().getPinCode()));
+    }
+
+    private String nullSafe(String value) {
+        return value != null ? value : "";
     }
 
     private double calculateDistanceKm(String lat1Str, String lng1Str, String lat2Str, String lng2Str) {

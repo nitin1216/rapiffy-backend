@@ -19,15 +19,21 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
     private final ShopProductRepository shopProductRepository;
     private final SubCategoryRepository subCategoryRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final VariantAttributeTypeRepository variantAttributeTypeRepository;
+    private final VariantAttributeValueRepository variantAttributeValueRepository;
 
     public AdminCatalogServiceImpl(ProfileRepository profileRepository,
                                    ShopProductRepository shopProductRepository,
                                    SubCategoryRepository subCategoryRepository,
-                                   ProductVariantRepository productVariantRepository) {
+                                   ProductVariantRepository productVariantRepository,
+                                   VariantAttributeTypeRepository variantAttributeTypeRepository,
+                                   VariantAttributeValueRepository variantAttributeValueRepository) {
         this.profileRepository = profileRepository;
         this.shopProductRepository = shopProductRepository;
         this.subCategoryRepository = subCategoryRepository;
         this.productVariantRepository = productVariantRepository;
+        this.variantAttributeTypeRepository = variantAttributeTypeRepository;
+        this.variantAttributeValueRepository = variantAttributeValueRepository;
     }
 
     // ── MY PRODUCTS (tree: Category → SubCategory → Products) ────────────────
@@ -68,6 +74,7 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
     // ── UPDATE PRODUCT ───────────────────────────────────────────────────────
 
     @Override
+    @Transactional
     public CatalogActionResponse updateProduct(Long userId, Long shopProductId, UpdateProductRequest request) {
         Profile shop = getShopProfile(userId);
 
@@ -89,6 +96,86 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
         if (request.getHasVariants() != null) sp.setHasVariants(request.getHasVariants());
 
         shopProductRepository.save(sp);
+
+        // Update attributeTypes if provided (replaces existing)
+        if (request.getAttributeTypes() != null && !request.getAttributeTypes().isEmpty()) {
+            sp.getAttributeTypes().clear();
+            shopProductRepository.save(sp);
+            Map<String, VariantAttributeType> typeMap = new HashMap<>();
+            for (int i = 0; i < request.getAttributeTypes().size(); i++) {
+                VariantAttributeType type = new VariantAttributeType();
+                type.setAttributeName(request.getAttributeTypes().get(i));
+                type.setDisplayOrder(i + 1);
+                type.setShopProduct(sp);
+                typeMap.put(type.getAttributeName(), variantAttributeTypeRepository.save(type));
+            }
+        }
+
+        // Update variants if provided
+        if (request.getVariants() != null) {
+            // Collect IDs of variants sent in request (those with id = update, those without = add)
+            Set<Long> incomingIds = request.getVariants().stream()
+                .filter(vr -> vr.getId() != null)
+                .map(VariantRequest::getId)
+                .collect(Collectors.toSet());
+
+            // Delete variants not in the incoming list
+            List<ProductVariant> existing = productVariantRepository.findByParentShopProduct_Id(sp.getId());
+            existing.stream()
+                .filter(v -> !incomingIds.contains(v.getId()))
+                .forEach(productVariantRepository::delete);
+
+            // Rebuild typeMap from current saved attribute types
+            Map<String, VariantAttributeType> typeMap = variantAttributeTypeRepository
+                .findByShopProductIdOrderByDisplayOrder(sp.getId())
+                .stream()
+                .collect(Collectors.toMap(VariantAttributeType::getAttributeName, t -> t));
+
+            for (VariantRequest vr : request.getVariants()) {
+                ProductVariant variant;
+                if (vr.getId() != null) {
+                    variant = productVariantRepository.findById(vr.getId())
+                        .orElseThrow(() -> new ApiException("Variant not found: " + vr.getId(), HttpStatus.NOT_FOUND));
+                } else {
+                    variant = new ProductVariant();
+                    variant.setParentShopProduct(sp);
+                    variant.setActive(true);
+                }
+                if (vr.getVariantName() != null) variant.setVariantName(vr.getVariantName());
+                if (vr.getBrand() != null) variant.setBrand(vr.getBrand());
+                if (vr.getShortDescription() != null) variant.setShortDescription(vr.getShortDescription());
+                if (vr.getLongDescription() != null) variant.setLongDescription(vr.getLongDescription());
+                if (vr.getMrp() != null) variant.setMrp(vr.getMrp());
+                if (vr.getSellingPrice() != null) variant.setSellingPrice(vr.getSellingPrice());
+                if (vr.getStockQuantity() != null) variant.setStockQuantity(vr.getStockQuantity());
+                if (vr.getThresholdQuantity() != null) variant.setThresholdQuantity(vr.getThresholdQuantity());
+                if (vr.getImageUrl() != null) variant.setImageUrl(vr.getImageUrl());
+                if (vr.getExpiryDate() != null) variant.setExpiryDate(vr.getExpiryDate());
+                if (vr.getGstSlab() != null) variant.setGstSlab(vr.getGstSlab());
+                ProductVariant savedVariant = productVariantRepository.save(variant);
+                if (savedVariant.getShopProductId() == null) {
+                    savedVariant.setShopProductId(savedVariant.getId());
+                    productVariantRepository.save(savedVariant);
+                }
+
+                if (vr.getAttributes() != null) {
+                    List<VariantAttributeValue> existingValues = variantAttributeValueRepository.findByProductVariantId(savedVariant.getId());
+                    for (Map.Entry<String, String> entry : vr.getAttributes().entrySet()) {
+                        VariantAttributeType attrType = typeMap.get(entry.getKey());
+                        if (attrType == null) continue;
+                        VariantAttributeValue attrValue = existingValues.stream()
+                            .filter(ev -> ev.getAttributeType().getId().equals(attrType.getId()))
+                            .findFirst()
+                            .orElse(new VariantAttributeValue());
+                        attrValue.setAttributeType(attrType);
+                        attrValue.setAttributeValue(entry.getValue());
+                        attrValue.setProductVariant(savedVariant);
+                        variantAttributeValueRepository.save(attrValue);
+                    }
+                }
+            }
+        }
+
         return new CatalogActionResponse(sp.getId(), "Product updated successfully");
     }
 
@@ -120,14 +207,29 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
         if (!parent.isHasVariants())
             throw new ApiException("Product does not have variants enabled. Set hasVariants=true first.", HttpStatus.BAD_REQUEST);
 
+        // Save attribute types (Size, Colour, etc.) — clear old ones first
+        parent.getAttributeTypes().clear();
+        shopProductRepository.save(parent);
+
+        List<VariantAttributeType> savedTypes = new ArrayList<>();
+        for (int i = 0; i < request.getAttributeTypes().size(); i++) {
+            VariantAttributeType type = new VariantAttributeType();
+            type.setAttributeName(request.getAttributeTypes().get(i));
+            type.setDisplayOrder(i + 1);
+            type.setShopProduct(parent);
+            savedTypes.add(variantAttributeTypeRepository.save(type));
+        }
+
+        // Build a map of attributeName → VariantAttributeType for quick lookup
+        Map<String, VariantAttributeType> typeMap = savedTypes.stream()
+            .collect(Collectors.toMap(VariantAttributeType::getAttributeName, t -> t));
+
         List<ProductVariant> saved = new ArrayList<>();
         for (VariantRequest vr : request.getVariants()) {
             ProductVariant variant = new ProductVariant();
             variant.setParentShopProduct(parent);
             variant.setVariantName(vr.getVariantName());
             variant.setBrand(vr.getBrand());
-            variant.setUnit(vr.getUnit());
-            variant.setUnitValue(vr.getUnitValue());
             variant.setShortDescription(vr.getShortDescription());
             variant.setLongDescription(vr.getLongDescription());
             variant.setMrp(vr.getMrp());
@@ -138,10 +240,24 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
             variant.setExpiryDate(vr.getExpiryDate());
             variant.setGstSlab(vr.getGstSlab());
             variant.setActive(true);
-            saved.add(productVariantRepository.save(variant));
+            ProductVariant savedVariant = productVariantRepository.save(variant);
+
+            // Save attribute values (e.g. Size=8, Colour=Red)
+            if (vr.getAttributes() != null) {
+                for (Map.Entry<String, String> entry : vr.getAttributes().entrySet()) {
+                    VariantAttributeType attrType = typeMap.get(entry.getKey());
+                    if (attrType == null) continue;
+                    VariantAttributeValue attrValue = new VariantAttributeValue();
+                    attrValue.setAttributeType(attrType);
+                    attrValue.setAttributeValue(entry.getValue());
+                    attrValue.setProductVariant(savedVariant);
+                    variantAttributeValueRepository.save(attrValue);
+                }
+            }
+            saved.add(savedVariant);
         }
 
-        // Auto-set shopProductId = variant's generated id (reuse PK as shopProductId)
+        // Auto-set shopProductId = variant's generated id
         for (ProductVariant v : saved) {
             v.setShopProductId(v.getId());
         }
@@ -157,6 +273,7 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
     // ── ADD UNLISTED PRODUCT ─────────────────────────────────────────────────
 
     @Override
+    @Transactional
     public CatalogActionResponse addUnlistedProduct(Long userId, AddUnlistedProductRequest request) {
         Profile shop = getShopProfile(userId);
 
@@ -193,6 +310,52 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
         sp.setHasVariants(request.isHasVariants());
 
         ShopProduct saved = shopProductRepository.save(sp);
+
+        if (request.isHasVariants() && request.getAttributeTypes() != null && !request.getAttributeTypes().isEmpty()) {
+            Map<String, VariantAttributeType> typeMap = new HashMap<>();
+            for (int i = 0; i < request.getAttributeTypes().size(); i++) {
+                VariantAttributeType type = new VariantAttributeType();
+                type.setAttributeName(request.getAttributeTypes().get(i));
+                type.setDisplayOrder(i + 1);
+                type.setShopProduct(saved);
+                typeMap.put(type.getAttributeName(), variantAttributeTypeRepository.save(type));
+            }
+
+            if (request.getVariants() != null) {
+                for (VariantRequest vr : request.getVariants()) {
+                    ProductVariant variant = new ProductVariant();
+                    variant.setParentShopProduct(saved);
+                    variant.setVariantName(vr.getVariantName());
+                    variant.setBrand(vr.getBrand());
+                    variant.setShortDescription(vr.getShortDescription());
+                    variant.setLongDescription(vr.getLongDescription());
+                    variant.setMrp(vr.getMrp());
+                    variant.setSellingPrice(vr.getSellingPrice() != null ? vr.getSellingPrice() : 0.0);
+                    variant.setStockQuantity(vr.getStockQuantity() != null ? vr.getStockQuantity() : 0);
+                    variant.setThresholdQuantity(vr.getThresholdQuantity());
+                    variant.setImageUrl(vr.getImageUrl());
+                    variant.setExpiryDate(vr.getExpiryDate());
+                    variant.setGstSlab(vr.getGstSlab());
+                    variant.setActive(true);
+                    ProductVariant savedVariant = productVariantRepository.save(variant);
+                    savedVariant.setShopProductId(savedVariant.getId());
+                    productVariantRepository.save(savedVariant);
+
+                    if (vr.getAttributes() != null) {
+                        for (Map.Entry<String, String> entry : vr.getAttributes().entrySet()) {
+                            VariantAttributeType attrType = typeMap.get(entry.getKey());
+                            if (attrType == null) continue;
+                            VariantAttributeValue attrValue = new VariantAttributeValue();
+                            attrValue.setAttributeType(attrType);
+                            attrValue.setAttributeValue(entry.getValue());
+                            attrValue.setProductVariant(savedVariant);
+                            variantAttributeValueRepository.save(attrValue);
+                        }
+                    }
+                }
+            }
+        }
+
         return new CatalogActionResponse(saved.getId(), "Unlisted product added successfully");
     }
 
@@ -252,14 +415,20 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
         r.setActive(sp.isActive());
         r.setUnlisted(sp.getMasterProduct() == null);
         if (sp.isHasVariants()) {
-            List<VariantResponse> variants = productVariantRepository.findByParentShopProductId(sp.getId())
+            // Set attribute type names (e.g. ["Size", "Colour"])
+            List<String> attrTypeNames = variantAttributeTypeRepository
+                .findByShopProductIdOrderByDisplayOrder(sp.getId())
+                .stream()
+                .map(VariantAttributeType::getAttributeName)
+                .collect(Collectors.toList());
+            r.setAttributeTypes(attrTypeNames);
+
+            List<VariantResponse> variants = productVariantRepository.findByParentShopProduct_Id(sp.getId())
                 .stream().map(v -> {
                     VariantResponse vr = new VariantResponse();
                     vr.setId(v.getId());
                     vr.setVariantName(v.getVariantName());
                     vr.setBrand(v.getBrand());
-                    vr.setUnit(v.getUnit());
-                    vr.setUnitValue(v.getUnitValue());
                     vr.setMrp(v.getMrp());
                     vr.setSellingPrice(v.getSellingPrice());
                     vr.setStockQuantity(v.getStockQuantity());
@@ -267,6 +436,15 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
                     vr.setImageUrl(v.getImageUrl());
                     vr.setExpiryDate(v.getExpiryDate());
                     vr.setActive(v.isActive());
+                    // Build attributes map e.g. { "Size": "8", "Colour": "Red" }
+                    Map<String, String> attrs = variantAttributeValueRepository
+                        .findByProductVariantId(v.getId())
+                        .stream()
+                        .collect(Collectors.toMap(
+                            val -> val.getAttributeType().getAttributeName(),
+                            VariantAttributeValue::getAttributeValue
+                        ));
+                    vr.setAttributes(attrs);
                     return vr;
                 }).collect(Collectors.toList());
             r.setVariants(variants);
@@ -284,14 +462,11 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
         ProductVariant variant = productVariantRepository.findById(variantId)
                 .orElseThrow(() -> new ApiException("Variant not found", HttpStatus.NOT_FOUND));
 
-        // Ensure variant belongs to this shop
         if (!variant.getParentShopProduct().getShop().getId().equals(shop.getId()))
             throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
 
         if (request.getVariantName() != null) variant.setVariantName(request.getVariantName());
         if (request.getBrand() != null) variant.setBrand(request.getBrand());
-        if (request.getUnit() != null) variant.setUnit(request.getUnit());
-        if (request.getUnitValue() != null) variant.setUnitValue(request.getUnitValue());
         if (request.getShortDescription() != null) variant.setShortDescription(request.getShortDescription());
         if (request.getLongDescription() != null) variant.setLongDescription(request.getLongDescription());
         if (request.getMrp() != null) variant.setMrp(request.getMrp());
@@ -301,6 +476,18 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
         if (request.getImageUrl() != null) variant.setImageUrl(request.getImageUrl());
         if (request.getExpiryDate() != null) variant.setExpiryDate(request.getExpiryDate());
         if (request.getGstSlab() != null) variant.setGstSlab(request.getGstSlab());
+
+        // Update attribute values if provided
+        if (request.getAttributes() != null && !request.getAttributes().isEmpty()) {
+            List<VariantAttributeValue> existingValues = variantAttributeValueRepository.findByProductVariantId(variantId);
+            for (VariantAttributeValue existing : existingValues) {
+                String attrName = existing.getAttributeType().getAttributeName();
+                if (request.getAttributes().containsKey(attrName)) {
+                    existing.setAttributeValue(request.getAttributes().get(attrName));
+                    variantAttributeValueRepository.save(existing);
+                }
+            }
+        }
 
         productVariantRepository.save(variant);
         return new CatalogActionResponse(variant.getId(), "Variant updated successfully");

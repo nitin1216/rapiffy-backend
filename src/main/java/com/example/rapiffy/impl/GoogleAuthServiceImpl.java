@@ -7,11 +7,13 @@ import com.example.rapiffy.dto.LoginResponse;
 import com.example.rapiffy.enums.AuthProvider;
 import com.example.rapiffy.enums.Roles;
 import com.example.rapiffy.model.Profile;
+import com.example.rapiffy.model.RefreshToken;
 import com.example.rapiffy.model.User;
 import com.example.rapiffy.repos.ProfileRepository;
 import com.example.rapiffy.repos.UserRepository;
 import com.example.rapiffy.security.JwtUtil;
 import com.example.rapiffy.services.GoogleAuthService;
+import com.example.rapiffy.services.RefreshTokenService;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
@@ -28,16 +30,19 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final JwtUtil jwtUtil;
+    private final RefreshTokenService refreshTokenService;
 
     @Value("${google.client-id}")
     private String googleClientId;
 
     public GoogleAuthServiceImpl(UserRepository userRepository,
                                  ProfileRepository profileRepository,
-                                 JwtUtil jwtUtil) {
+                                 JwtUtil jwtUtil,
+                                 RefreshTokenService refreshTokenService) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.jwtUtil = jwtUtil;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @Override
@@ -102,9 +107,10 @@ public class GoogleAuthServiceImpl implements GoogleAuthService {
             userRepository.save(user);
         }
 
-        // 5. Generate and return app JWT
-        String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
-        return new LoginResponse(token, "Google login successful");
+        // 5. Generate tokens and return
+        String accessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
+        RefreshToken refreshToken = refreshTokenService.create(user);
+        return new LoginResponse(accessToken, refreshToken.getToken(), "Google login successful");
     }
 
     private CName buildName(String firstName, String lastName) {

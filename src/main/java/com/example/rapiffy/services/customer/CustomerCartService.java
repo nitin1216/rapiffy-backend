@@ -2,7 +2,9 @@ package com.example.rapiffy.services.customer;
 
 import com.example.rapiffy.dto.customer.AddToCartRequest;
 import com.example.rapiffy.dto.customer.CartResponse;
+import com.example.rapiffy.dto.customer.CheckoutFromCartRequest;
 import com.example.rapiffy.dto.customer.UpdateCartItemRequest;
+import com.example.rapiffy.dto.customer.ParentOrderResponse;
 
 public interface CustomerCartService {
 
@@ -15,4 +17,6 @@ public interface CustomerCartService {
     CartResponse removeCartItem(Long userId, Long cartItemId);
 
     void clearCart(Long userId);
+
+    ParentOrderResponse checkoutFromCart(Long userId, CheckoutFromCartRequest request);
 }

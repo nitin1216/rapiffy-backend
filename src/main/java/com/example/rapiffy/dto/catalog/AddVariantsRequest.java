@@ -12,6 +12,10 @@ public class AddVariantsRequest {
     @NotNull(message = "parentShopProductId is required")
     private Long parentShopProductId;
 
+    // e.g. ["Size", "Colour"] — defines what dimensions variants vary on
+    @NotEmpty(message = "attributeTypes cannot be empty")
+    private List<String> attributeTypes;
+
     @NotEmpty(message = "variants list cannot be empty")
     private List<VariantRequest> variants;
 }

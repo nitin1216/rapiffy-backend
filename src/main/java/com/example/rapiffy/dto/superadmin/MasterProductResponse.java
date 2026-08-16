@@ -1,12 +1,16 @@
 package com.example.rapiffy.dto.superadmin;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
+import com.example.rapiffy.dto.catalog.VariantResponse;
 import com.example.rapiffy.model.MasterProduct;
 import com.example.rapiffy.model.MasterProductVariant;
+import com.example.rapiffy.model.VariantAttributeType;
+import com.example.rapiffy.model.VariantAttributeValue;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Data
@@ -29,8 +33,12 @@ public class MasterProductResponse {
     private boolean hasVariants;
     private boolean active;
     private LocalDateTime createdAt;
+
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    private List<MasterProductVariant> variants;
+    private List<String> attributeTypes;
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private List<VariantResponse> variants;
 
     public static MasterProductResponse from(MasterProduct mp) {
         MasterProductResponse r = new MasterProductResponse();
@@ -51,7 +59,34 @@ public class MasterProductResponse {
         r.setHasVariants(mp.isHasVariants());
         r.setActive(mp.isActive());
         r.setCreatedAt(mp.getCreatedAt());
-        r.setVariants(mp.getVariants());
+        r.setAttributeTypes(mp.getAttributeTypes().stream()
+            .map(VariantAttributeType::getAttributeName)
+            .collect(Collectors.toList()));
+        r.setVariants(mp.getVariants().stream()
+            .map(MasterProductResponse::toVariantResponse)
+            .collect(Collectors.toList()));
         return r;
+    }
+
+    private static VariantResponse toVariantResponse(MasterProductVariant v) {
+        Map<String, String> attributes = v.getAttributeValues().stream()
+            .collect(Collectors.toMap(
+                av -> av.getAttributeType().getAttributeName(),
+                VariantAttributeValue::getAttributeValue
+            ));
+
+        VariantResponse vr = new VariantResponse();
+        vr.setId(v.getId());
+        vr.setVariantName(v.getVariantName());
+        vr.setBrand(v.getBrand());
+        vr.setMrp(v.getMrp());
+        vr.setSellingPrice(v.getSellingPrice());
+        vr.setStockQuantity(v.getStockQuantity());
+        vr.setThresholdQuantity(v.getThresholdQuantity());
+        vr.setImageUrl(v.getImageUrl());
+        vr.setExpiryDate(v.getExpiryDate());
+        vr.setActive(v.isActive());
+        vr.setAttributes(attributes);
+        return vr;
     }
 }

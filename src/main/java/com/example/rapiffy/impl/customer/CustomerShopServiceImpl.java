@@ -7,9 +7,13 @@ import com.example.rapiffy.model.ProductVariant;
 import com.example.rapiffy.model.Profile;
 import com.example.rapiffy.model.ShopProduct;
 import com.example.rapiffy.model.SubCategory;
+import com.example.rapiffy.model.VariantAttributeType;
+import com.example.rapiffy.model.VariantAttributeValue;
 import com.example.rapiffy.repos.ProductVariantRepository;
 import com.example.rapiffy.repos.ProfileRepository;
 import com.example.rapiffy.repos.ShopProductRepository;
+import com.example.rapiffy.repos.VariantAttributeTypeRepository;
+import com.example.rapiffy.repos.VariantAttributeValueRepository;
 import com.example.rapiffy.services.customer.CustomerShopService;
 import org.springframework.http.HttpStatus;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +32,8 @@ public class CustomerShopServiceImpl implements CustomerShopService {
     private final ProfileRepository profileRepository;
     private final ShopProductRepository shopProductRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final VariantAttributeTypeRepository variantAttributeTypeRepository;
+    private final VariantAttributeValueRepository variantAttributeValueRepository;
 
     // ── NEARBY SHOPS ─────────────────────────────────────────────────────────
 
@@ -73,6 +79,71 @@ public class CustomerShopServiceImpl implements CustomerShopService {
         return toProductResponse(product, null, null);
     }
 
+    // ── GET PRODUCT ATTRIBUTES (all distinct values per attribute) ─────────────
+
+    @Override
+    public Map<String, List<String>> getProductAttributes(Long shopProductId) {
+        ShopProduct parent = shopProductRepository.findById(shopProductId)
+                .orElseThrow(() -> new ApiException("Product not found", HttpStatus.NOT_FOUND));
+
+        if (!parent.isHasVariants()) return Collections.emptyMap();
+
+        // Ordered attribute types for this product
+        List<VariantAttributeType> types = variantAttributeTypeRepository
+                .findByShopProductIdOrderByDisplayOrder(parent.getId());
+
+        // All active variant IDs
+        List<Long> variantIds = productVariantRepository
+                .findByParentShopProduct_IdAndIsActive(parent.getId(), true)
+                .stream().map(v -> v.getId()).toList();
+
+        // All attribute values for those variants
+        Map<Long, List<VariantAttributeValue>> valuesByType = new LinkedHashMap<>();
+        for (VariantAttributeType type : types) {
+            valuesByType.put(type.getId(), new ArrayList<>());
+        }
+        for (Long variantId : variantIds) {
+            variantAttributeValueRepository.findByProductVariantId(variantId)
+                .forEach(av -> {
+                    Long typeId = av.getAttributeType().getId();
+                    if (valuesByType.containsKey(typeId)) {
+                        valuesByType.get(typeId).add(av);
+                    }
+                });
+        }
+
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        for (VariantAttributeType type : types) {
+            List<String> distinctValues = valuesByType.get(type.getId()).stream()
+                    .map(VariantAttributeValue::getAttributeValue)
+                    .distinct()
+                    .collect(Collectors.toList());
+            result.put(type.getAttributeName(), distinctValues);
+        }
+        return result;
+    }
+
+    // ── FILTER VARIANTS BY SELECTED ATTRIBUTES ────────────────────────────────
+
+    @Override
+    public List<CustomerVariantResponse> filterVariants(Long shopProductId, Map<String, String> selectedAttributes) {
+        ShopProduct parent = shopProductRepository.findById(shopProductId)
+                .orElseThrow(() -> new ApiException("Product not found", HttpStatus.NOT_FOUND));
+
+        if (!parent.isHasVariants() || selectedAttributes == null || selectedAttributes.isEmpty())
+            return Collections.emptyList();
+
+        List<String> filters = selectedAttributes.entrySet().stream()
+                .map(e -> e.getKey() + "=" + e.getValue())
+                .toList();
+
+        return productVariantRepository
+                .findMatchingVariants(parent.getId(), filters, filters.size())
+                .stream()
+                .map(this::toVariantResponse)
+                .collect(Collectors.toList());
+    }
+
     // ── GET VARIANTS BY PARENT SHOP PRODUCT ID ────────────────────────────────
 
     @Override
@@ -84,7 +155,7 @@ public class CustomerShopServiceImpl implements CustomerShopService {
             return Collections.emptyList();
 
         return productVariantRepository
-                .findByParentShopProductIdAndIsActive(shopProductId, true)
+                .findByParentShopProduct_IdAndIsActive(shopProductId, true)
                 .stream()
                 .map(this::toVariantResponse)
                 .collect(Collectors.toList());
@@ -185,6 +256,23 @@ public class CustomerShopServiceImpl implements CustomerShopService {
             } catch (NumberFormatException ignored) {}
         }
 
+        // Build attributeTypes and variants only when hasVariants = true
+        List<String> attributeTypes = null;
+        List<CustomerVariantResponse> variants = null;
+        if (p.isHasVariants()) {
+            attributeTypes = variantAttributeTypeRepository
+                .findByShopProductIdOrderByDisplayOrder(p.getId())
+                .stream()
+                .map(VariantAttributeType::getAttributeName)
+                .collect(Collectors.toList());
+
+            variants = productVariantRepository
+                .findByParentShopProduct_IdAndIsActive(p.getId(), true)
+                .stream()
+                .map(this::toVariantResponse)
+                .collect(Collectors.toList());
+        }
+
         return CustomerProductResponse.builder()
                 .shopProductId(p.getId())
                 .productName(p.getProductName())
@@ -201,6 +289,8 @@ public class CustomerShopServiceImpl implements CustomerShopService {
                 .categoryId(p.getSubCategory() != null ? p.getSubCategory().getCategory().getId() : null)
                 .categoryName(p.getSubCategory() != null ? p.getSubCategory().getCategory().getCategoryName() : null)
                 .hasVariants(p.isHasVariants())
+                .attributeTypes(attributeTypes)
+                .variants(variants)
                 .shopId(p.getShop().getId())
                 .shopName(p.getShop().getShopName())
                 .distanceInKm(distance)
@@ -208,18 +298,26 @@ public class CustomerShopServiceImpl implements CustomerShopService {
     }
 
     private CustomerVariantResponse toVariantResponse(ProductVariant v) {
+        // Build attributes map e.g. { "Size": "8", "Colour": "Red" }
+        Map<String, String> attributes = variantAttributeValueRepository
+            .findByProductVariantId(v.getId())
+            .stream()
+            .collect(Collectors.toMap(
+                val -> val.getAttributeType().getAttributeName(),
+                VariantAttributeValue::getAttributeValue
+            ));
+
         return CustomerVariantResponse.builder()
                 .variantId(v.getId())
                 .shopProductId(v.getShopProductId())
                 .variantName(v.getVariantName())
                 .brand(v.getBrand())
-                .unit(v.getUnit())
-                .unitValue(v.getUnitValue())
                 .mrp(v.getMrp())
                 .sellingPrice(v.getSellingPrice())
                 .stockQuantity(v.getStockQuantity())
                 .imageUrl(v.getImageUrl())
                 .shortDescription(v.getShortDescription())
+                .attributes(attributes)
                 .build();
     }
 

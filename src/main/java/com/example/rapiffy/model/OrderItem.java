@@ -1,5 +1,6 @@
 package com.example.rapiffy.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -17,14 +18,20 @@ public class OrderItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
-    // Reference to the shop product or variant (nullable — may be deleted later)
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shop_product_id")
     private ShopProduct shopProduct;
+
+    // If this item is a variant, stores the ProductVariant.id for stock deduction
+    // null for plain ShopProduct orders
+    @Column(name = "variant_id")
+    private Long variantId;
 
     // ─── SNAPSHOT at time of order ───────────────────────────────────────────
 

@@ -6,7 +6,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, sans-serif; font-size: 12px; color: #333; padding: 30px; }
         .header-table { width: 100%; margin-bottom: 20px; }
-        .app-name { font-size: 26px; font-weight: bold; color: #e63946; }
+        .app-name { font-size: 26px; font-weight: bold; letter-spacing: -1px; color: #000; }
         .invoice-meta { text-align: right; }
         .invoice-meta h2 { font-size: 20px; color: #333; }
         .invoice-meta p { font-size: 11px; color: #666; margin-top: 2px; }
@@ -36,7 +36,7 @@
     <!-- HEADER -->
     <table class="header-table">
         <tr>
-            <td><span class="app-name">rapiffy</span></td>
+            <td>{{logo}}</td>
             <td class="invoice-meta">
                 <h2>INVOICE</h2>
                 <p><b>{{invoiceId}}</b></p>

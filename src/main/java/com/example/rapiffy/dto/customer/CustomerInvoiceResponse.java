@@ -11,6 +11,7 @@ public class CustomerInvoiceResponse {
 
     private String orderNumber;
     private LocalDateTime orderDate;
+    private String message;
 
     // Customer details
     private String customerPhone;

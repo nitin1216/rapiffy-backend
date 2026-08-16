@@ -2,6 +2,7 @@ package com.example.rapiffy.model;
 
 import com.example.rapiffy.enums.OrderStatus;
 import com.example.rapiffy.enums.PaymentStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -36,6 +37,7 @@ public class ParentOrder {
     private String orderNumber;
 
     // Customer who placed the order
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id", nullable = false)
     private User customer;
@@ -51,6 +53,9 @@ public class ParentOrder {
 
     @Column(name = "delivery_address", columnDefinition = "TEXT")
     private String deliveryAddress;        // same address for all shops
+
+    @Column(name = "delivery_instruction", columnDefinition = "TEXT")
+    private String deliveryInstruction;    // optional note for delivery person
 
     // ─── PRICING SUMMARY (sum of all sub-orders) ─────────────────────────────
 
@@ -69,6 +74,10 @@ public class ParentOrder {
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_status", nullable = false, length = 25)
     private PaymentStatus paymentStatus = PaymentStatus.PENDING;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 20)
+    private com.example.rapiffy.enums.PaymentMethod paymentMethod;
 
     // Total amount refunded so far (sum of all sub-order refunds)
     @Column(name = "refunded_amount", nullable = false)

@@ -8,6 +8,7 @@ import com.example.rapiffy.model.*;
 import com.example.rapiffy.model.payment.*;
 import com.example.rapiffy.repos.*;
 import com.example.rapiffy.repos.payment.*;
+import com.example.rapiffy.services.customer.CustomerCartService;
 import com.example.rapiffy.services.customer.CustomerPaymentService;
 import com.razorpay.RazorpayClient;
 import com.razorpay.RazorpayException;
@@ -40,6 +41,7 @@ public class CustomerPaymentServiceImpl implements CustomerPaymentService {
     private final UserRepository userRepository;
     private final PlatformConfigRepository platformConfigRepository;
     private final PlatformCommissionRepository platformCommissionRepository;
+    private final CustomerCartService cartService;
 
     // ─── 1. INITIATE PAYMENT ─────────────────────────────────────────────────
 
@@ -141,6 +143,9 @@ public class CustomerPaymentServiceImpl implements CustomerPaymentService {
 
         // Create transfers to each shop (split payment)
         createTransfersForShops(payment, parentOrder);
+
+        // Payment confirmed — now safe to clear the cart
+        try { cartService.clearCart(userId); } catch (Exception ignored) {}
 
         return buildPaymentStatusResponse(payment);
     }

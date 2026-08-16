@@ -26,6 +26,9 @@ public class CustomerProductResponse {
     private Long categoryId;
     private String categoryName;
     private boolean hasVariants;
+
+    // e.g. ["Size", "Colour"] — only when hasVariants = true
+    private List<String> attributeTypes;
     private List<CustomerVariantResponse> variants;
     private Long shopId;
     private String shopName;

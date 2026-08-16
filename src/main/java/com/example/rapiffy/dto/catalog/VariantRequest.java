@@ -3,14 +3,16 @@ package com.example.rapiffy.dto.catalog;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.Map;
 
 @Data
 public class VariantRequest {
 
+    // Present when updating an existing variant; absent when adding a new one
+    private Long id;
+
     private String variantName;
     private String brand;
-    private String unit;
-    private String unitValue;
     private String shortDescription;
     private String longDescription;
     private Double mrp;
@@ -20,4 +22,7 @@ public class VariantRequest {
     private String imageUrl;
     private LocalDate expiryDate;
     private String gstSlab;
+
+    // e.g. { "Size": "8", "Colour": "Red" }
+    private Map<String, String> attributes;
 }

@@ -2,6 +2,8 @@ package com.example.rapiffy.controller.customer;
 
 import com.example.rapiffy.dto.customer.AddToCartRequest;
 import com.example.rapiffy.dto.customer.CartResponse;
+import com.example.rapiffy.dto.customer.CheckoutFromCartRequest;
+import com.example.rapiffy.dto.customer.ParentOrderResponse;
 import com.example.rapiffy.dto.customer.UpdateCartItemRequest;
 import com.example.rapiffy.exceptions.ApiException;
 import com.example.rapiffy.model.User;
@@ -65,7 +67,17 @@ public class CustomerCartController {
     }
 
     @Operation(
-        summary = "Clear entire cart",
+        summary = "Checkout selected cart items",
+        description = "Places an order using only the selected cart items (by cartItemId). "
+            + "Unselected items remain in cart. Works for select-one, select-all, or any combination."
+    )
+    @PostMapping("/checkout")
+    public ResponseEntity<ParentOrderResponse> checkoutFromCart(@Valid @RequestBody CheckoutFromCartRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(cartService.checkoutFromCart(getCurrentUserId(), request));
+    }
+
+    @Operation(
         description = "Removes all items from cart. Called automatically after order is placed."
     )
     @DeleteMapping

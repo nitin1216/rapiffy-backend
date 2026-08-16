@@ -2,6 +2,7 @@ package com.example.rapiffy.repos;
 
 import com.example.rapiffy.enums.OrderStatus;
 import com.example.rapiffy.model.Order;
+import com.example.rapiffy.model.ParentOrder;
 import com.example.rapiffy.model.Profile;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -23,4 +24,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     // All orders placed by a customer
     List<Order> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
+
+    // All sub-orders under a parent order
+    List<Order> findByParentOrder(ParentOrder parentOrder);
 }

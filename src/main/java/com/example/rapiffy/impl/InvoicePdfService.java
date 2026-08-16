@@ -2,6 +2,7 @@ package com.example.rapiffy.impl;
 
 import com.example.rapiffy.dto.invoice.InvoiceResponse;
 import com.example.rapiffy.dto.order.OrderItemResponse;
+import com.example.rapiffy.common.RapiffyBrand;
 import com.lowagie.text.DocumentException;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -58,6 +59,7 @@ public class InvoicePdfService {
         }
 
         return template
+            .replace("{{logo}}", RapiffyBrand.LOGO_HTML)
             .replace("{{invoiceId}}", safe(inv.getInvoiceId(), ""))
             .replace("{{invoiceDate}}", inv.getInvoiceDate().format(DATE_FMT))
             .replace("{{orderNumber}}", safe(inv.getOrderNumber(), ""))

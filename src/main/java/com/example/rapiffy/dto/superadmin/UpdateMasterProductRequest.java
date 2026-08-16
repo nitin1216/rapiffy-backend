@@ -22,5 +22,6 @@ public class UpdateMasterProductRequest {
 
     // Variants — null means don't touch, empty list means remove all
     private Boolean hasVariants;
+    private List<String> attributeTypes;
     private List<MasterVariantRequest> variants;
 }

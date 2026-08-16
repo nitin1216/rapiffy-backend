@@ -14,7 +14,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -26,6 +27,7 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final ShopProductRepository shopProductRepository;
+    private final ProductVariantRepository productVariantRepository;
     private final UserRepository userRepository;
     private final CustomerCartService cartService;
     private final CustomerAddressRepository customerAddressRepository;
@@ -53,37 +55,53 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         }
 
         // Build parent order
-        String dateStr = LocalDate.now().toString().replace("-", "");
-        String uniqueSuffix = String.valueOf(System.currentTimeMillis() % 10000);
+        LocalDateTime now = LocalDateTime.now();
+        String dateStr = now.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String timeStr = now.format(DateTimeFormatter.ofPattern("HHmm"));
+        String uniqueSuffix = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         ParentOrder parentOrder = new ParentOrder();
         parentOrder.setCustomer(customer);
         parentOrder.setDeliveryType(request.getDeliveryType().toUpperCase());
         parentOrder.setDeliveryAddress(request.getDeliveryAddress());
-        parentOrder.setOrderNumber("PO-" + dateStr + "-" + uniqueSuffix);
+        parentOrder.setDeliveryInstruction(request.getDeliveryInstruction());
+        parentOrder.setOrderNumber("PO-" + dateStr + "" + timeStr + "-" + uniqueSuffix);
         parentOrder.setStatus(OrderStatus.PAYMENT_PENDING);
+        System.out.println("Creating order for user: " + parentOrder.getOrderNumber());
         parentOrder.setSubtotal(0.0);
         parentOrder.setTotalGst(0.0);
         parentOrder.setTotalAmount(0.0);
+        parentOrder.setPaymentMethod(request.getPaymentMethod());
         ParentOrder savedParent = parentOrderRepository.save(parentOrder);
 
-        // Resolve every item first, then group by shop
-        List<ShopProduct[]> resolved = new ArrayList<>(); // [0]=sp placeholder
+        // Resolve every item — support both ShopProduct and ProductVariant
         List<ShopProduct> resolvedProducts = new ArrayList<>();
+        List<ProductVariant> resolvedVariants = new ArrayList<>();
         List<PlaceOrderItemRequest> resolvedRequests = new ArrayList<>();
 
         for (PlaceOrderItemRequest itemReq : request.getItems()) {
             if (itemReq.getShopProductId() == null)
                 throw new ApiException("shopProductId is required for each item", HttpStatus.BAD_REQUEST);
 
-            ShopProduct sp = shopProductRepository.findById(itemReq.getShopProductId())
-                    .orElseThrow(() -> new ApiException("Product not found: " + itemReq.getShopProductId(), HttpStatus.NOT_FOUND));
+            ShopProduct sp = shopProductRepository.findById(itemReq.getShopProductId()).orElse(null);
+            ProductVariant variant = null;
 
-            if (!sp.isActive())
-                throw new ApiException("Product not available: " + sp.getProductName(), HttpStatus.BAD_REQUEST);
-            if (sp.getStockQuantity() < itemReq.getQuantity())
-                throw new ApiException("Insufficient stock for: " + sp.getProductName(), HttpStatus.BAD_REQUEST);
+            if (sp == null || sp.isHasVariants()) {
+                variant = productVariantRepository.findByShopProductId(itemReq.getShopProductId())
+                        .orElseThrow(() -> new ApiException("Product not found: " + itemReq.getShopProductId(), HttpStatus.NOT_FOUND));
+                if (!variant.isActive())
+                    throw new ApiException("Product not available: " + variant.getVariantName(), HttpStatus.BAD_REQUEST);
+                if (variant.getStockQuantity() < itemReq.getQuantity())
+                    throw new ApiException("Insufficient stock for: " + variant.getVariantName(), HttpStatus.BAD_REQUEST);
+                sp = variant.getParentShopProduct();
+            } else {
+                if (!sp.isActive())
+                    throw new ApiException("Product not available: " + sp.getProductName(), HttpStatus.BAD_REQUEST);
+                if (sp.getStockQuantity() < itemReq.getQuantity())
+                    throw new ApiException("Insufficient stock for: " + sp.getProductName(), HttpStatus.BAD_REQUEST);
+            }
 
             resolvedProducts.add(sp);
+            resolvedVariants.add(variant); // null if plain product
             resolvedRequests.add(itemReq);
         }
 
@@ -107,10 +125,20 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
 
             for (int idx : entry.getValue()) {
                 ShopProduct sp = resolvedProducts.get(idx);
+                ProductVariant variant = resolvedVariants.get(idx);
                 PlaceOrderItemRequest itemReq = resolvedRequests.get(idx);
 
-                double gstRate      = parseGstRate(sp.getGstSlab());
-                double lineSubtotal = sp.getSellingPrice() * itemReq.getQuantity();
+                String productName  = variant != null ? variant.getVariantName()                    : sp.getProductName();
+                String brand        = variant != null ? variant.getBrand()                           : sp.getBrand();
+                String unit         = variant != null ? sp.getUnit()                                 : sp.getUnit();
+                String unitValue    = variant != null ? sp.getUnitValue()                            : sp.getUnitValue();
+                String imageUrl     = variant != null ? variant.getImageUrl()                        : sp.getImageUrl();
+                Double mrp          = variant != null ? variant.getMrp()                             : sp.getMrp();
+                Double sellingPrice = variant != null ? variant.getSellingPrice()                    : sp.getSellingPrice();
+                String gstSlab      = variant != null ? variant.getGstSlab()                         : sp.getGstSlab();
+
+                double gstRate      = parseGstRate(gstSlab);
+                double lineSubtotal = sellingPrice * itemReq.getQuantity();
                 double gstAmount    = Math.round(lineSubtotal * gstRate * 100.0) / 100.0;
 
                 subTotal += lineSubtotal;
@@ -118,15 +146,16 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
 
                 OrderItem item = new OrderItem();
                 item.setShopProduct(sp);
-                item.setProductName(sp.getProductName());
-                item.setBrand(sp.getBrand());
-                item.setUnit(sp.getUnit());
-                item.setUnitValue(sp.getUnitValue());
-                item.setImageUrl(sp.getImageUrl());
-                item.setMrp(sp.getMrp());
-                item.setSellingPrice(sp.getSellingPrice());
+                item.setVariantId(variant != null ? variant.getId() : null);
+                item.setProductName(productName);
+                item.setBrand(brand);
+                item.setUnit(unit);
+                item.setUnitValue(unitValue);
+                item.setImageUrl(imageUrl);
+                item.setMrp(mrp);
+                item.setSellingPrice(sellingPrice);
                 item.setQuantity(itemReq.getQuantity());
-                item.setGstSlab(sp.getGstSlab());
+                item.setGstSlab(gstSlab);
                 item.setGstAmount(gstAmount);
                 item.setLineTotal(Math.round((lineSubtotal + gstAmount) * 100.0) / 100.0);
                 orderItems.add(item);
@@ -162,10 +191,25 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         savedParent.setTotalGst(Math.round(grandGst * 100.0) / 100.0);
         savedParent.setTotalAmount(Math.round((grandSubtotal + grandGst) * 100.0) / 100.0);
         savedParent.setSubOrders(subOrders);
+
+        // COD → directly PENDING so admin can see it, no payment needed
+        // UPI/CARD/etc → stays PAYMENT_PENDING until payment is verified
+        if (request.getPaymentMethod() == com.example.rapiffy.enums.PaymentMethod.COD) {
+            savedParent.setStatus(OrderStatus.PENDING);
+            savedParent.setPaymentStatus(com.example.rapiffy.enums.PaymentStatus.PENDING);
+            subOrders.forEach(o -> {
+                o.setStatus(OrderStatus.PENDING);
+                orderRepository.save(o);
+            });
+        }
+
         parentOrderRepository.save(savedParent);
 
-        // Auto-clear cart after successful order
-        cartService.clearCart(userId);
+        // COD → clear cart immediately (no payment step follows)
+        if (request.getPaymentMethod() == com.example.rapiffy.enums.PaymentMethod.COD) {
+            try { cartService.clearCart(userId); } catch (Exception ignored) {}
+        }
+        // UPI/Online → cart cleared only after payment is verified (in verifyPayment)
 
         return toParentOrderResponse(savedParent);
     }
@@ -223,6 +267,7 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         r.setOrderNumber(po.getOrderNumber());
         r.setDeliveryType(po.getDeliveryType());
         r.setDeliveryAddress(po.getDeliveryAddress());
+        r.setDeliveryInstruction(po.getDeliveryInstruction());
         r.setSubtotal(po.getSubtotal());
         r.setTotalGst(po.getTotalGst());
         r.setTotalAmount(po.getTotalAmount());
@@ -240,6 +285,10 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
 
         if (!parentOrder.getCustomer().getId().equals(userId))
             throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
+
+        boolean anyConfirmed = parentOrder.getSubOrders().stream()
+                .anyMatch(o -> o.getStatus() != OrderStatus.PAYMENT_PENDING
+                            && o.getStatus() != OrderStatus.PENDING);
 
         // Build one section per sub-order (shop)
         List<CustomerInvoiceResponse.ShopInvoiceSection> shopSections = parentOrder.getSubOrders()
@@ -284,6 +333,8 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         r.setTotalGst(parentOrder.getTotalGst());
         r.setDeliveryCharge(0.0);
         r.setTotalAmount(parentOrder.getTotalAmount());
+        if (!anyConfirmed)
+            r.setMessage("Invoice not available yet. Order has not been confirmed by the shop.");
         return r;
     }
 
