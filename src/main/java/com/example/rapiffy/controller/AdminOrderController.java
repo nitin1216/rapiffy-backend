@@ -3,6 +3,7 @@ package com.example.rapiffy.controller;
 import com.example.rapiffy.dto.invoice.InvoiceResponse;
 import com.example.rapiffy.dto.order.OrderDetailResponse;
 import com.example.rapiffy.dto.order.OrderSummaryResponse;
+import com.example.rapiffy.dto.order.UpdateOrderStatusRequest;
 import com.example.rapiffy.enums.OrderStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,21 +26,13 @@ public interface AdminOrderController {
     @GetMapping("/{orderId}")
     ResponseEntity<OrderDetailResponse> getOrderDetail(@PathVariable Long orderId);
 
-    @Operation(summary = "Confirm order", description = "PENDING → CONFIRMED. Deducts stock.")
-    @PutMapping("/{orderId}/confirm")
-    ResponseEntity<OrderDetailResponse> confirmOrder(@PathVariable Long orderId);
+    @Operation(summary = "Get all order statuses", description = "Returns all valid statuses admin can set on an order.")
+    @GetMapping("/statuses")
+    ResponseEntity<List<OrderStatus>> getOrderStatuses();
 
-    @Operation(summary = "Mark order as ready", description = "CONFIRMED → READY")
-    @PutMapping("/{orderId}/ready")
-    ResponseEntity<OrderDetailResponse> markReady(@PathVariable Long orderId);
-
-    @Operation(summary = "Mark order out for delivery", description = "READY → OUT_FOR_DELIVERY")
-    @PutMapping("/{orderId}/out-for-delivery")
-    ResponseEntity<OrderDetailResponse> markOutForDelivery(@PathVariable Long orderId);
-
-    @Operation(summary = "Mark order as delivered", description = "OUT_FOR_DELIVERY → DELIVERED")
-    @PutMapping("/{orderId}/delivered")
-    ResponseEntity<OrderDetailResponse> markDelivered(@PathVariable Long orderId);
+    @Operation(summary = "Update order status", description = "Single API to update order status. Valid transitions: PENDING→CONFIRMED→READY→OUT_FOR_DELIVERY→DELIVERED")
+    @PutMapping("/{orderId}/status")
+    ResponseEntity<OrderDetailResponse> updateOrderStatus(@PathVariable Long orderId, @RequestBody UpdateOrderStatusRequest request);
 
     @Operation(summary = "Get invoice data as JSON")
     @GetMapping("/{orderId}/invoice")

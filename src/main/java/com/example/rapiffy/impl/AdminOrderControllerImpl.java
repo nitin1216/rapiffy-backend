@@ -3,6 +3,7 @@ package com.example.rapiffy.impl;
 import com.example.rapiffy.dto.invoice.InvoiceResponse;
 import com.example.rapiffy.controller.AdminOrderController;
 import com.example.rapiffy.dto.order.OrderDetailResponse;
+import com.example.rapiffy.dto.order.UpdateOrderStatusRequest;
 import com.example.rapiffy.dto.order.OrderSummaryResponse;
 import com.example.rapiffy.enums.OrderStatus;
 import com.example.rapiffy.exceptions.ApiException;
@@ -44,23 +45,19 @@ public class AdminOrderControllerImpl implements AdminOrderController {
     }
 
     @Override
-    public ResponseEntity<OrderDetailResponse> confirmOrder(Long orderId) {
-        return ResponseEntity.ok(orderService.confirmOrder(getCurrentUserId(), orderId));
+    public ResponseEntity<List<OrderStatus>> getOrderStatuses() {
+        return ResponseEntity.ok(List.of(
+            OrderStatus.CONFIRMED,
+            OrderStatus.READY,
+            OrderStatus.OUT_FOR_DELIVERY,
+            OrderStatus.DELIVERED,
+            OrderStatus.REJECTED
+        ));
     }
 
     @Override
-    public ResponseEntity<OrderDetailResponse> markReady(Long orderId) {
-        return ResponseEntity.ok(orderService.markReady(getCurrentUserId(), orderId));
-    }
-
-    @Override
-    public ResponseEntity<OrderDetailResponse> markOutForDelivery(Long orderId) {
-        return ResponseEntity.ok(orderService.markOutForDelivery(getCurrentUserId(), orderId));
-    }
-
-    @Override
-    public ResponseEntity<OrderDetailResponse> markDelivered(Long orderId) {
-        return ResponseEntity.ok(orderService.markDelivered(getCurrentUserId(), orderId));
+    public ResponseEntity<OrderDetailResponse> updateOrderStatus(Long orderId, UpdateOrderStatusRequest request) {
+        return orderService.updateOrderStatus(getCurrentUserId(), orderId, request.getStatus());
     }
 
     @Override

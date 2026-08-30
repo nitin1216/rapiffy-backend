@@ -9,6 +9,8 @@ import java.util.List;
 @Data
 public class OrderDetailResponse {
 
+    private String message;
+
     private Long orderId;
     private String orderNumber;
     private String invoiceId;

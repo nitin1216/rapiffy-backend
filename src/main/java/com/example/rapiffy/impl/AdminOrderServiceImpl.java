@@ -4,12 +4,14 @@ import com.example.rapiffy.dto.invoice.InvoiceResponse;
 import com.example.rapiffy.dto.order.OrderDetailResponse;
 import com.example.rapiffy.dto.order.OrderItemResponse;
 import com.example.rapiffy.dto.order.OrderSummaryResponse;
+import com.example.rapiffy.enums.CancelledBy;
 import com.example.rapiffy.enums.OrderStatus;
 import com.example.rapiffy.exceptions.ApiException;
 import com.example.rapiffy.model.*;
 import com.example.rapiffy.repos.*;
 import com.example.rapiffy.services.AdminOrderService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,80 +58,99 @@ public class AdminOrderServiceImpl implements AdminOrderService {
     }
 
     @Override
-    public OrderDetailResponse confirmOrder(Long userId, Long orderId) {
+    @Transactional
+    public ResponseEntity<OrderDetailResponse> updateOrderStatus(Long userId, Long orderId, OrderStatus status) {
         Profile shop = getShop(userId);
         Order order = getOrder(orderId, shop);
 
-        if (order.getStatus() != OrderStatus.PENDING)
-            throw new ApiException("Order is not in PENDING state", HttpStatus.BAD_REQUEST);
-
-        // Deduct stock from product or variant
-        for (OrderItem item : order.getItems()) {
-            if (item.getVariantId() != null) {
-                productVariantRepository.findById(item.getVariantId()).ifPresent(variant -> {
-                    if (variant.getStockQuantity() < item.getQuantity())
-                        throw new ApiException("Insufficient stock for: " + item.getProductName(), HttpStatus.BAD_REQUEST);
-                    variant.setStockQuantity(variant.getStockQuantity() - item.getQuantity());
-                    productVariantRepository.save(variant);
-                });
-            } else {
-                ShopProduct sp = item.getShopProduct();
-                if (sp == null) continue;
-                if (sp.getStockQuantity() < item.getQuantity())
-                    throw new ApiException("Insufficient stock for: " + item.getProductName(), HttpStatus.BAD_REQUEST);
-                sp.setStockQuantity(sp.getStockQuantity() - item.getQuantity());
-                shopProductRepository.save(sp);
+        switch (status) {
+            case CONFIRMED -> {
+                if (order.getStatus() != OrderStatus.PENDING) {
+                    OrderDetailResponse detail = toDetail(order);
+                    detail.setMessage("Order must be PENDING to confirm");
+                    return ResponseEntity.badRequest().body(detail);
+                }
+                for (OrderItem item : order.getItems()) {
+                    if (item.getVariantId() != null) {
+                        productVariantRepository.findById(item.getVariantId()).ifPresent(variant -> {
+                            if (variant.getStockQuantity() < item.getQuantity()) {
+                                order.setStatus(OrderStatus.REJECTED);
+                                order.setCancelledBy(CancelledBy.ADMIN);
+                                order.setCancellationReason("Insufficient stock for: " + item.getProductName());
+                                order.setCancelledAt(java.time.LocalDateTime.now());
+                            } else {
+                                variant.setStockQuantity(variant.getStockQuantity() - item.getQuantity());
+                                productVariantRepository.save(variant);
+                            }
+                        });
+                    } else {
+                        ShopProduct sp = item.getShopProduct();
+                        if (sp == null) continue;
+                        if (sp.getStockQuantity() < item.getQuantity()) {
+                            order.setStatus(OrderStatus.REJECTED);
+                            order.setCancelledBy(CancelledBy.ADMIN);
+                            order.setCancellationReason("Insufficient stock for: " + item.getProductName());
+                            order.setCancelledAt(java.time.LocalDateTime.now());
+                        } else {
+                            sp.setStockQuantity(sp.getStockQuantity() - item.getQuantity());
+                            shopProductRepository.save(sp);
+                        }
+                    }
+                    if (order.getStatus() == OrderStatus.REJECTED) break;
+                }
+                if (order.getStatus() == OrderStatus.REJECTED) {
+                    orderRepository.save(order);
+                    syncParentOrderStatus(order);
+                    return ResponseEntity.ok(toDetail(order));
+                }
+                if (order.getInvoiceId() == null)
+                    order.setInvoiceId("INV-" + java.time.LocalDate.now().toString().replace("-", "") + "-" + String.format("%04d", order.getId()));
+            }
+            case READY -> {
+                if (order.getStatus() != OrderStatus.CONFIRMED) {
+                    OrderDetailResponse detail = toDetail(order);
+                    detail.setMessage("Order must be CONFIRMED to mark READY");
+                    return ResponseEntity.badRequest().body(detail);
+                }
+            }
+            case OUT_FOR_DELIVERY -> {
+                if (order.getStatus() != OrderStatus.READY) {
+                    OrderDetailResponse detail = toDetail(order);
+                    detail.setMessage("Order must be READY to mark OUT_FOR_DELIVERY");
+                    return ResponseEntity.badRequest().body(detail);
+                }
+            }
+            case DELIVERED -> {
+                if (order.getStatus() != OrderStatus.OUT_FOR_DELIVERY) {
+                    OrderDetailResponse detail = toDetail(order);
+                    detail.setMessage("Order must be OUT_FOR_DELIVERY to mark DELIVERED");
+                    return ResponseEntity.badRequest().body(detail);
+                }
+            }
+            case REJECTED -> {
+                if (order.getStatus() == OrderStatus.OUT_FOR_DELIVERY ||
+                    order.getStatus() == OrderStatus.DELIVERED ||
+                    order.getStatus() == OrderStatus.REJECTED ||
+                    order.getStatus() == OrderStatus.CANCELLED) {
+                    OrderDetailResponse detail = toDetail(order);
+                    detail.setMessage("Order cannot be rejected at this stage");
+                    return ResponseEntity.badRequest().body(detail);
+                }
+                order.setCancelledBy(CancelledBy.ADMIN);
+                order.setCancellationReason("Rejected by shop");
+                order.setCancelledAt(java.time.LocalDateTime.now());
+            }
+            default -> {
+                OrderDetailResponse detail = toDetail(order);
+                detail.setMessage("Invalid status: " + status);
+                return ResponseEntity.badRequest().body(detail);
             }
         }
 
-        order.setStatus(OrderStatus.CONFIRMED);
-        if (order.getInvoiceId() == null)
-            order.setInvoiceId("INV-" + java.time.LocalDate.now().toString().replace("-", "") + "-" + String.format("%04d", order.getId()));
+        order.setStatus(status);
         orderRepository.save(order);
         syncParentOrderStatus(order);
-        return toDetail(order);
-    }
-
-    @Override
-    public OrderDetailResponse markReady(Long userId, Long orderId) {
-        Profile shop = getShop(userId);
-        Order order = getOrder(orderId, shop);
-
-        if (order.getStatus() != OrderStatus.CONFIRMED)
-            throw new ApiException("Order must be CONFIRMED before marking READY", HttpStatus.BAD_REQUEST);
-
-        order.setStatus(OrderStatus.READY);
-        orderRepository.save(order);
-        syncParentOrderStatus(order);
-        return toDetail(order);
-    }
-
-    @Override
-    public OrderDetailResponse markOutForDelivery(Long userId, Long orderId) {
-        Profile shop = getShop(userId);
-        Order order = getOrder(orderId, shop);
-
-        if (order.getStatus() != OrderStatus.READY)
-            throw new ApiException("Order must be READY before marking OUT_FOR_DELIVERY", HttpStatus.BAD_REQUEST);
-
-        order.setStatus(OrderStatus.OUT_FOR_DELIVERY);
-        orderRepository.save(order);
-        syncParentOrderStatus(order);
-        return toDetail(order);
-    }
-
-    @Override
-    public OrderDetailResponse markDelivered(Long userId, Long orderId) {
-        Profile shop = getShop(userId);
-        Order order = getOrder(orderId, shop);
-
-        if (order.getStatus() != OrderStatus.OUT_FOR_DELIVERY)
-            throw new ApiException("Order must be OUT_FOR_DELIVERY before marking DELIVERED", HttpStatus.BAD_REQUEST);
-
-        order.setStatus(OrderStatus.DELIVERED);
-        orderRepository.save(order);
-        syncParentOrderStatus(order);
-        return toDetail(order);
+        return ResponseEntity.ok(toDetail(order));
     }
 
     @Override
