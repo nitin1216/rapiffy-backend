@@ -1,10 +1,12 @@
 package com.example.rapiffy.controller.customer;
 
 import com.example.rapiffy.dto.customer.AddToCartRequest;
+import com.example.rapiffy.dto.customer.CartPreviewResponse;
 import com.example.rapiffy.dto.customer.CartResponse;
 import com.example.rapiffy.dto.customer.CheckoutFromCartRequest;
 import com.example.rapiffy.dto.customer.ParentOrderResponse;
 import com.example.rapiffy.dto.customer.UpdateCartItemRequest;
+import java.util.List;
 import com.example.rapiffy.exceptions.ApiException;
 import com.example.rapiffy.model.User;
 import com.example.rapiffy.repos.UserRepository;
@@ -64,6 +66,15 @@ public class CustomerCartController {
     @DeleteMapping("/item/{cartItemId}")
     public ResponseEntity<CartResponse> removeCartItem(@PathVariable Long cartItemId) {
         return ResponseEntity.ok(cartService.removeCartItem(getCurrentUserId(), cartItemId));
+    }
+
+    @Operation(
+        summary = "Preview selected cart items",
+        description = "Returns full product details and price summary for selected cart items."
+    )
+    @PostMapping("/preview")
+    public ResponseEntity<CartPreviewResponse> previewCart(@RequestBody List<Long> cartItemIds) {
+        return ResponseEntity.ok(cartService.previewCart(getCurrentUserId(), cartItemIds));
     }
 
     @Operation(

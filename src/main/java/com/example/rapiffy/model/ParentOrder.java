@@ -24,7 +24,10 @@ import java.util.List;
  *   └── Order (sub) → Dairy Shop    → Milk, Curd      ₹200
  */
 @Entity
-@Table(name = "parent_orders")
+@Table(name = "parent_orders", indexes = {
+        @Index(name = "idx_parentorder_customer", columnList = "customer_id"),
+        @Index(name = "idx_parentorder_status",   columnList = "status")
+})
 @Data
 public class ParentOrder {
 

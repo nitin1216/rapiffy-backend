@@ -118,6 +118,13 @@
 			<version>20240303</version>
 		</dependency>
 
+		<!-- JSch — SFTP client for Serverbyt image uploads -->
+		<dependency>
+			<groupId>com.github.mwiede</groupId>
+			<artifactId>jsch</artifactId>
+			<version>0.2.20</version
+			></dependency>
+
 	</dependencies>
 
 	<build>

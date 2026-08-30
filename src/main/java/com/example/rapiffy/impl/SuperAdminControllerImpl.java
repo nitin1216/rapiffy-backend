@@ -5,20 +5,24 @@ import com.example.rapiffy.controller.SuperAdminController;
 import com.example.rapiffy.dto.superadmin.*;
 import com.example.rapiffy.model.Category;
 import com.example.rapiffy.services.SuperAdminService;
+import com.example.rapiffy.sftp.ImageUploadService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 public class SuperAdminControllerImpl implements SuperAdminController {
 
     private final SuperAdminService superAdminService;
+    private final ImageUploadService imageUploadService;
 
-    public SuperAdminControllerImpl(SuperAdminService superAdminService) {
+    public SuperAdminControllerImpl(SuperAdminService superAdminService, ImageUploadService imageUploadService) {
         this.superAdminService = superAdminService;
+        this.imageUploadService = imageUploadService;
     }
 
     // ── CATEGORY ─────────────────────────────────────────────────────────────
@@ -132,5 +136,25 @@ public class SuperAdminControllerImpl implements SuperAdminController {
     @Override
     public ResponseEntity<SuperAdminActionResponse> deleteMasterVariant(Long variantId) {
         return ResponseEntity.ok(superAdminService.deleteMasterVariant(variantId));
+    }
+
+    // ── IMAGE UPLOAD ──────────────────────────────────────────────────────────
+
+    @Override
+    public ResponseEntity<Map<String, String>> uploadCategoryImage(Long categoryId, MultipartFile file) {
+        String url = imageUploadService.uploadCategoryImage(categoryId, file);
+        return ResponseEntity.ok(Map.of("imageUrl", url));
+    }
+
+    @Override
+    public ResponseEntity<Map<String, Object>> uploadProductImages(Long productId, List<MultipartFile> files) {
+        List<String> urls = imageUploadService.uploadProductImages(productId, files);
+        return ResponseEntity.ok(Map.of("productId", productId, "imageUrls", urls));
+    }
+
+    @Override
+    public ResponseEntity<Map<String, Object>> uploadVariantImages(Long variantId, List<MultipartFile> files) {
+        List<String> urls = imageUploadService.uploadVariantImages(variantId, files);
+        return ResponseEntity.ok(Map.of("variantId", variantId, "imageUrls", urls));
     }
 }

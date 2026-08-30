@@ -3,6 +3,7 @@ package com.example.rapiffy.dto.catalog;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -19,6 +20,7 @@ public class VariantResponse {
     private Integer stockQuantity;
     private Integer thresholdQuantity;
     private String imageUrl;
+    private List<String> imageUrls;
     private LocalDate expiryDate;
     private boolean isActive;
 

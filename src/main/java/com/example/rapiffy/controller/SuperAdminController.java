@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * SuperAdmin Controller — Platform-level management APIs.
@@ -155,4 +156,27 @@ public interface SuperAdminController {
     @Operation(summary = "Delete a master variant by variantId")
     @DeleteMapping("/catalog/variants/{variantId}")
     ResponseEntity<SuperAdminActionResponse> deleteMasterVariant(@PathVariable Long variantId);
+
+    // ── IMAGE UPLOAD ──────────────────────────────────────────────────────────
+
+    @Operation(summary = "Upload image for a category (replaces existing)")
+    @PostMapping(value = "/category/{categoryId}/image", consumes = "multipart/form-data")
+    ResponseEntity<Map<String, String>> uploadCategoryImage(
+        @PathVariable Long categoryId,
+        @RequestParam("file") MultipartFile file
+    );
+
+    @Operation(summary = "Upload images for a master product (appends to existing)")
+    @PostMapping(value = "/catalog/product/{productId}/images", consumes = "multipart/form-data")
+    ResponseEntity<Map<String, Object>> uploadProductImages(
+        @PathVariable Long productId,
+        @RequestParam("files") List<MultipartFile> files
+    );
+
+    @Operation(summary = "Upload images for a master variant (appends to existing)")
+    @PostMapping(value = "/catalog/variant/{variantId}/images", consumes = "multipart/form-data")
+    ResponseEntity<Map<String, Object>> uploadVariantImages(
+        @PathVariable Long variantId,
+        @RequestParam("files") List<MultipartFile> files
+    );
 }

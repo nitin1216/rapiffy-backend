@@ -44,6 +44,7 @@ public class CustomerCartServiceImpl implements CustomerCartService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public CartResponse getCart(Long userId) {
         User customer = getUser(userId);
         Cart cart = cartRepository.findByCustomer(customer).orElse(null);
@@ -220,6 +221,128 @@ public class CustomerCartServiceImpl implements CustomerCartService {
         });
     }
 
+    @Override
+    public CartPreviewResponse previewCart(Long userId, List<Long> cartItemIds) {
+        User customer = getUser(userId);
+        Cart cart = getCart(customer);
+
+        // Group resolved items by shopId
+        Map<Long, List<CartPreviewItemResponse>> byShop = new LinkedHashMap<>();
+        Map<Long, Profile> shopById = new LinkedHashMap<>();
+        double subtotal = 0.0;
+        double totalGst = 0.0;
+        int totalItems = 0;
+
+        for (Long cartItemId : cartItemIds) {
+            CartItem ci = getCartItem(cartItemId, cart);
+
+            CartPreviewItemResponse item = new CartPreviewItemResponse();
+            item.setCartItemId(ci.getId());
+            item.setQuantity(ci.getQuantity());
+
+            Profile shop;
+            double lineSubtotal;
+            double gstAmount;
+
+            if (ci.getProductVariant() != null) {
+                ProductVariant v = ci.getProductVariant();
+                ShopProduct parent = v.getParentShopProduct();
+                shop = parent.getShop();
+
+                item.setShopProductId(v.getShopProductId());
+                item.setShopId(shop.getId());
+                item.setShopName(shop.getShopName());
+                item.setProductName(v.getVariantName());
+                item.setBrand(v.getBrand());
+                item.setUnit(parent.getUnit());
+                item.setUnitValue(parent.getUnitValue());
+                item.setShortDescription(v.getShortDescription());
+                item.setLongDescription(v.getLongDescription());
+                item.setImageUrl(v.getImageUrl());
+                item.setImageGallery(v.getImages().stream().map(ProductVariantImage::getImageUrl).toList());
+                item.setMrp(v.getMrp());
+                item.setSellingPrice(v.getSellingPrice());
+                item.setGstSlab(v.getGstSlab());
+                item.setStockQuantity(v.getStockQuantity());
+                item.setExpiryDate(v.getExpiryDate());
+
+                lineSubtotal = v.getSellingPrice() * ci.getQuantity();
+                gstAmount = Math.round(lineSubtotal * parseGstRate(v.getGstSlab()) * 100.0) / 100.0;
+                item.setDiscountPercent(v.getMrp() != null && v.getMrp() > 0
+                        ? Math.round((v.getMrp() - v.getSellingPrice()) / v.getMrp() * 100.0 * 10.0) / 10.0
+                        : 0.0);
+            } else {
+                ShopProduct sp = ci.getShopProduct();
+                shop = sp.getShop();
+
+                item.setShopProductId(sp.getId());
+                item.setShopId(shop.getId());
+                item.setShopName(shop.getShopName());
+                item.setProductName(sp.getProductName());
+                item.setBrand(sp.getBrand());
+                item.setUnit(sp.getUnit());
+                item.setUnitValue(sp.getUnitValue());
+                item.setShortDescription(sp.getShortDescription());
+                item.setLongDescription(sp.getLongDescription());
+                item.setImageUrl(sp.getImageUrl());
+                item.setImageGallery(sp.getImages().stream().map(ShopProductImage::getImageUrl).toList());
+                item.setMrp(sp.getMrp());
+                item.setSellingPrice(sp.getSellingPrice());
+                item.setGstSlab(sp.getGstSlab());
+                item.setStockQuantity(sp.getStockQuantity());
+                item.setExpiryDate(sp.getExpiryDate());
+
+                lineSubtotal = sp.getSellingPrice() * ci.getQuantity();
+                gstAmount = Math.round(lineSubtotal * parseGstRate(sp.getGstSlab()) * 100.0) / 100.0;
+                item.setDiscountPercent(sp.getMrp() != null && sp.getMrp() > 0
+                        ? Math.round((sp.getMrp() - sp.getSellingPrice()) / sp.getMrp() * 100.0 * 10.0) / 10.0
+                        : 0.0);
+            }
+
+            item.setGstAmount(gstAmount);
+            item.setItemTotal(Math.round((lineSubtotal + gstAmount) * 100.0) / 100.0);
+            subtotal += lineSubtotal;
+            totalGst += gstAmount;
+            totalItems++;
+
+            shopById.putIfAbsent(shop.getId(), shop);
+            byShop.computeIfAbsent(shop.getId(), k -> new ArrayList<>()).add(item);
+        }
+
+        CartPreviewResponse response = new CartPreviewResponse();
+        response.setTotalItems(totalItems);
+        response.setSubtotal(Math.round(subtotal * 100.0) / 100.0);
+        response.setTotalGst(Math.round(totalGst * 100.0) / 100.0);
+        response.setGrandTotal(Math.round((subtotal + totalGst) * 100.0) / 100.0);
+
+        if (byShop.size() == 1) {
+            response.setMultiShop(false);
+            response.setItems(byShop.values().iterator().next());
+        } else {
+            response.setMultiShop(true);
+            List<CartPreviewShopGroup> shops = new ArrayList<>();
+            for (Map.Entry<Long, List<CartPreviewItemResponse>> entry : byShop.entrySet()) {
+                Profile shop = shopById.get(entry.getKey());
+                List<CartPreviewItemResponse> shopItems = entry.getValue();
+
+                double shopSubtotal = shopItems.stream().mapToDouble(i -> i.getSellingPrice() * i.getQuantity()).sum();
+                double shopGst = shopItems.stream().mapToDouble(CartPreviewItemResponse::getGstAmount).sum();
+
+                CartPreviewShopGroup group = new CartPreviewShopGroup();
+                group.setShopId(shop.getId());
+                group.setShopName(shop.getShopName());
+                group.setItems(shopItems);
+                group.setShopSubtotal(Math.round(shopSubtotal * 100.0) / 100.0);
+                group.setShopGst(Math.round(shopGst * 100.0) / 100.0);
+                group.setShopTotal(Math.round((shopSubtotal + shopGst) * 100.0) / 100.0);
+                shops.add(group);
+            }
+            response.setShops(shops);
+        }
+
+        return response;
+    }
+
     // ── HELPERS ──────────────────────────────────────────────────────────────
 
     private User getUser(Long userId) {
@@ -347,6 +470,15 @@ public class CustomerCartServiceImpl implements CustomerCartService {
                     + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
                     * Math.sin(dLng / 2) * Math.sin(dLng / 2);
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        } catch (NumberFormatException e) {
+            return 0.0;
+        }
+    }
+
+    private double parseGstRate(String gstSlab) {
+        if (gstSlab == null || gstSlab.isBlank()) return 0.0;
+        try {
+            return Double.parseDouble(gstSlab.replace("%", "").trim()) / 100.0;
         } catch (NumberFormatException e) {
             return 0.0;
         }

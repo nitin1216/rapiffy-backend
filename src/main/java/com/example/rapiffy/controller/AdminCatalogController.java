@@ -5,8 +5,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Admin Catalog Controller — APIs for shopkeeper to manage their shop products.
@@ -94,4 +96,20 @@ public interface AdminCatalogController {
     @Operation(summary = "Delete a variant by variantId")
     @DeleteMapping("/variants/{variantId}")
     ResponseEntity<CatalogActionResponse> deleteVariant(@PathVariable Long variantId);
+
+    // ── IMAGE UPLOAD ──────────────────────────────────────────────────────────
+
+    @Operation(summary = "Upload images for a shop product (appends to existing)")
+    @PostMapping(value = "/product/{shopProductId}/images", consumes = "multipart/form-data")
+    ResponseEntity<Map<String, Object>> uploadShopProductImages(
+        @PathVariable Long shopProductId,
+        @RequestParam("files") List<MultipartFile> files
+    );
+
+    @Operation(summary = "Upload images for a shop variant (appends to existing)")
+    @PostMapping(value = "/variant/{variantId}/images", consumes = "multipart/form-data")
+    ResponseEntity<Map<String, Object>> uploadShopVariantImages(
+        @PathVariable Long variantId,
+        @RequestParam("files") List<MultipartFile> files
+    );
 }

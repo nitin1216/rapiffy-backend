@@ -28,6 +28,8 @@ public class MasterProductResponse {
     private String unitValue;
     private Double mrp;
     private String imageUrl;
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private List<String> imageUrls;
     private String shortDescription;
     private String longDescription;
     private boolean hasVariants;
@@ -54,6 +56,9 @@ public class MasterProductResponse {
         r.setUnitValue(mp.getUnitValue());
         r.setMrp(mp.getMrp());
         r.setImageUrl(mp.getImageUrl());
+        r.setImageUrls(mp.getImages().stream()
+            .map(com.example.rapiffy.model.MasterProductImage::getImageUrl)
+            .collect(Collectors.toList()));
         r.setShortDescription(mp.getShortDescription());
         r.setLongDescription(mp.getLongDescription());
         r.setHasVariants(mp.isHasVariants());
@@ -84,6 +89,9 @@ public class MasterProductResponse {
         vr.setStockQuantity(v.getStockQuantity());
         vr.setThresholdQuantity(v.getThresholdQuantity());
         vr.setImageUrl(v.getImageUrl());
+        vr.setImageUrls(v.getImages().stream()
+            .map(com.example.rapiffy.model.MasterProductVariantImage::getImageUrl)
+            .collect(Collectors.toList()));
         vr.setExpiryDate(v.getExpiryDate());
         vr.setActive(v.isActive());
         vr.setAttributes(attributes);

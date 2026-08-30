@@ -16,7 +16,6 @@ public class MasterVariantRequest {
     private Double sellingPrice;
     private Integer stockQuantity;
     private Integer thresholdQuantity;
-    private String imageUrl;
     private LocalDate expiryDate;
     private String gstSlab;
 

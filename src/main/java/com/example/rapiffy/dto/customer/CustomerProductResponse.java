@@ -20,6 +20,7 @@ public class CustomerProductResponse {
     private Double sellingPrice;
     private Integer stockQuantity;
     private String imageUrl;
+    private List<String> imageUrls;
     private String shortDescription;
     private Long subCategoryId;
     private String subCategoryName;

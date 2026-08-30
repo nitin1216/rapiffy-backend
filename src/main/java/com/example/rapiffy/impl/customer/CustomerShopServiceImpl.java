@@ -14,6 +14,10 @@ import com.example.rapiffy.repos.ProfileRepository;
 import com.example.rapiffy.repos.ShopProductRepository;
 import com.example.rapiffy.repos.VariantAttributeTypeRepository;
 import com.example.rapiffy.repos.VariantAttributeValueRepository;
+import com.example.rapiffy.repos.ShopProductImageRepository;
+import com.example.rapiffy.repos.ProductVariantImageRepository;
+import com.example.rapiffy.model.ShopProductImage;
+import com.example.rapiffy.model.ProductVariantImage;
 import com.example.rapiffy.services.customer.CustomerShopService;
 import org.springframework.http.HttpStatus;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +38,8 @@ public class CustomerShopServiceImpl implements CustomerShopService {
     private final ProductVariantRepository productVariantRepository;
     private final VariantAttributeTypeRepository variantAttributeTypeRepository;
     private final VariantAttributeValueRepository variantAttributeValueRepository;
+    private final ShopProductImageRepository shopProductImageRepository;
+    private final ProductVariantImageRepository productVariantImageRepository;
 
     // ── NEARBY SHOPS ─────────────────────────────────────────────────────────
 
@@ -283,6 +289,9 @@ public class CustomerShopServiceImpl implements CustomerShopService {
                 .sellingPrice(p.getSellingPrice())
                 .stockQuantity(p.getStockQuantity())
                 .imageUrl(p.getImageUrl())
+                .imageUrls(shopProductImageRepository
+                        .findByShopProductIdOrderByDisplayOrderAsc(p.getId())
+                        .stream().map(ShopProductImage::getImageUrl).toList())
                 .shortDescription(p.getShortDescription())
                 .subCategoryId(p.getSubCategory() != null ? p.getSubCategory().getId() : null)
                 .subCategoryName(p.getSubCategory() != null ? p.getSubCategory().getName() : null)
@@ -316,6 +325,9 @@ public class CustomerShopServiceImpl implements CustomerShopService {
                 .sellingPrice(v.getSellingPrice())
                 .stockQuantity(v.getStockQuantity())
                 .imageUrl(v.getImageUrl())
+                .imageUrls(productVariantImageRepository
+                        .findByVariantIdOrderByDisplayOrderAsc(v.getId())
+                        .stream().map(ProductVariantImage::getImageUrl).toList())
                 .shortDescription(v.getShortDescription())
                 .attributes(attributes)
                 .build();

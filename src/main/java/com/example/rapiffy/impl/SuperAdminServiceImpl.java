@@ -166,7 +166,6 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         mp.setUnit(request.getUnit());
         mp.setUnitValue(request.getUnitValue());
         mp.setMrp(request.getMrp());
-        mp.setImageUrl(request.getImageUrl());
         mp.setShortDescription(request.getShortDescription());
         mp.setLongDescription(request.getLongDescription());
         mp.setHasVariants(request.isHasVariants());
@@ -219,8 +218,12 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
             String line;
             boolean isHeader = true;
+            int lineCount = 0;
+            final int MAX_LINES = 10_000;
 
             while ((line = reader.readLine()) != null) {
+                if (lineCount++ > MAX_LINES)
+                    throw new ApiException("CSV exceeds maximum allowed rows (" + MAX_LINES + ")", HttpStatus.BAD_REQUEST);
                 if (isHeader) { isHeader = false; continue; }
 
                 totalRows++;
@@ -278,7 +281,6 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         if (request.getUnit() != null) mp.setUnit(request.getUnit());
         if (request.getUnitValue() != null) mp.setUnitValue(request.getUnitValue());
         if (request.getMrp() != null) mp.setMrp(request.getMrp());
-        if (request.getImageUrl() != null) mp.setImageUrl(request.getImageUrl());
         if (request.getShortDescription() != null) mp.setShortDescription(request.getShortDescription());
         if (request.getLongDescription() != null) mp.setLongDescription(request.getLongDescription());
 
@@ -560,7 +562,6 @@ public class SuperAdminServiceImpl implements SuperAdminService {
             variant.setSellingPrice(vr.getSellingPrice());
             variant.setStockQuantity(vr.getStockQuantity());
             variant.setThresholdQuantity(vr.getThresholdQuantity());
-            variant.setImageUrl(vr.getImageUrl());
             variant.setExpiryDate(vr.getExpiryDate());
             variant.setGstSlab(vr.getGstSlab());
             variant.setActive(true);
@@ -601,7 +602,6 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         if (request.getSellingPrice() != null) variant.setSellingPrice(request.getSellingPrice());
         if (request.getStockQuantity() != null) variant.setStockQuantity(request.getStockQuantity());
         if (request.getThresholdQuantity() != null) variant.setThresholdQuantity(request.getThresholdQuantity());
-        if (request.getImageUrl() != null) variant.setImageUrl(request.getImageUrl());
         if (request.getExpiryDate() != null) variant.setExpiryDate(request.getExpiryDate());
         if (request.getGstSlab() != null) variant.setGstSlab(request.getGstSlab());
 
@@ -896,7 +896,6 @@ public class SuperAdminServiceImpl implements SuperAdminService {
             variant.setSellingPrice(vr.getSellingPrice());
             variant.setStockQuantity(vr.getStockQuantity());
             variant.setThresholdQuantity(vr.getThresholdQuantity());
-            variant.setImageUrl(vr.getImageUrl());
             variant.setExpiryDate(vr.getExpiryDate());
             variant.setGstSlab(vr.getGstSlab());
             variant.setActive(true);

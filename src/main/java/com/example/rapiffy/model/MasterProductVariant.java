@@ -59,10 +59,13 @@ public class MasterProductVariant {
     @Column(name = "threshold_quantity")
     private Integer thresholdQuantity;
 
+    // Thumbnail image URL (set automatically on first image upload)
     @Column(name = "image_url")
     private String imageUrl;
 
-    @Column(name = "expiry_date")
+    // Full image gallery
+    @OneToMany(mappedBy = "variant", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<MasterProductVariantImage> images = new java.util.ArrayList<>();
     private LocalDate expiryDate;
 
     @Column(name = "gst_slab")

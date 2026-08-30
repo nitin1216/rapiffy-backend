@@ -10,6 +10,7 @@ import com.example.rapiffy.repos.CustomerAddressRepository;
 import com.example.rapiffy.services.customer.CustomerCartService;
 import com.example.rapiffy.services.customer.CustomerOrderService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,10 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CustomerOrderServiceImpl implements CustomerOrderService {
 
     private final ParentOrderRepository parentOrderRepository;
@@ -66,7 +67,7 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         parentOrder.setDeliveryInstruction(request.getDeliveryInstruction());
         parentOrder.setOrderNumber("PO-" + dateStr + "" + timeStr + "-" + uniqueSuffix);
         parentOrder.setStatus(OrderStatus.PAYMENT_PENDING);
-        System.out.println("Creating order for user: " + parentOrder.getOrderNumber());
+        log.info("Creating order for user: " + parentOrder.getOrderNumber());
         parentOrder.setSubtotal(0.0);
         parentOrder.setTotalGst(0.0);
         parentOrder.setTotalAmount(0.0);
@@ -217,7 +218,9 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
     @Override
     public List<CustomerOrderSummaryResponse> getMyOrders(Long userId) {
         return parentOrderRepository.findByCustomerIdOrderByCreatedAtDesc(userId)
-                .stream().map(this::toSummary).toList();
+                .stream()
+                .map(this::toSummary)
+                .toList();
     }
 
     @Override
@@ -246,17 +249,18 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         CustomerOrderSummaryResponse r = new CustomerOrderSummaryResponse();
         r.setOrderId(po.getId());
         r.setOrderNumber(po.getOrderNumber());
-        r.setShopName(po.getSubOrders().stream()
-                .map(o -> o.getShop().getShopName())
-                .collect(Collectors.joining(", ")));
-        r.setTotalItems(po.getSubOrders().stream()
-                .mapToInt(o -> o.getItems().size()).sum());
+        r.setTotalItems(po.getSubOrders().stream().mapToInt(o -> o.getItems().size()).sum());
+        r.setThumbnailImage(po.getSubOrders().stream()
+                .flatMap(o -> o.getItems().stream())
+                .map(OrderItem::getImageUrl)
+                .filter(url -> url != null && !url.isBlank())
+                .findFirst()
+                .orElse(null));
         r.setSubtotal(po.getSubtotal());
         r.setTotalGst(po.getTotalGst());
         r.setDeliveryCharge(0.0);
         r.setTotalAmount(po.getTotalAmount());
         r.setDeliveryType(po.getDeliveryType());
-        r.setStatus(po.getStatus());
         r.setCreatedAt(po.getCreatedAt());
         return r;
     }
@@ -279,62 +283,59 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
     }
 
     @Override
-    public CustomerInvoiceResponse getCustomerInvoice(Long userId, Long parentOrderId) {
+    public CustomerInvoiceResponse getSubOrderInvoice(Long userId, Long parentOrderId, Long subOrderId) {
         ParentOrder parentOrder = parentOrderRepository.findById(parentOrderId)
                 .orElseThrow(() -> new ApiException("Order not found", HttpStatus.NOT_FOUND));
 
         if (!parentOrder.getCustomer().getId().equals(userId))
             throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
 
-        boolean anyConfirmed = parentOrder.getSubOrders().stream()
-                .anyMatch(o -> o.getStatus() != OrderStatus.PAYMENT_PENDING
-                            && o.getStatus() != OrderStatus.PENDING);
+        Order subOrder = parentOrder.getSubOrders().stream()
+                .filter(o -> o.getId().equals(subOrderId))
+                .findFirst()
+                .orElseThrow(() -> new ApiException("Sub-order not found", HttpStatus.NOT_FOUND));
 
-        // Build one section per sub-order (shop)
-        List<CustomerInvoiceResponse.ShopInvoiceSection> shopSections = parentOrder.getSubOrders()
-                .stream().map(subOrder -> {
-                    Profile shop = subOrder.getShop();
-                    CustomerInvoiceResponse.ShopInvoiceSection section = new CustomerInvoiceResponse.ShopInvoiceSection();
-                    section.setShopName(shop.getShopName());
-                    if (shop.getAddress() != null)
-                        section.setShopAddress(String.join(", ",
-                                nullSafe(shop.getAddress().getAddressLine1()),
-                                nullSafe(shop.getAddress().getCity()),
-                                nullSafe(shop.getAddress().getPinCode())));
-                    if (shop.getPhoneNumber() != null)
-                        section.setShopPhone(shop.getPhoneNumber().getPhoneNumber());
-                    section.setShopTotal(subOrder.getTotalAmount());
-                    section.setItems(subOrder.getItems().stream().map(item -> {
-                        OrderItemResponse i = new OrderItemResponse();
-                        i.setOrderItemId(item.getId());
-                        i.setProductName(item.getProductName());
-                        i.setBrand(item.getBrand());
-                        i.setUnit(item.getUnit());
-                        i.setUnitValue(item.getUnitValue());
-                        i.setMrp(item.getMrp());
-                        i.setSellingPrice(item.getSellingPrice());
-                        i.setQuantity(item.getQuantity());
-                        i.setGstSlab(item.getGstSlab());
-                        i.setGstAmount(item.getGstAmount());
-                        i.setLineTotal(item.getLineTotal());
-                        return i;
-                    }).toList());
-                    return section;
-                }).toList();
+        if (subOrder.getStatus() == OrderStatus.PAYMENT_PENDING || subOrder.getStatus() == OrderStatus.PENDING)
+            throw new ApiException("Invoice not available yet. Order has not been confirmed by the shop.", HttpStatus.BAD_REQUEST);
+
+        Profile shop = subOrder.getShop();
+        CustomerInvoiceResponse.ShopInvoiceSection section = new CustomerInvoiceResponse.ShopInvoiceSection();
+        section.setShopName(shop.getShopName());
+        if (shop.getAddress() != null)
+            section.setShopAddress(String.join(", ",
+                    nullSafe(shop.getAddress().getAddressLine1()),
+                    nullSafe(shop.getAddress().getCity()),
+                    nullSafe(shop.getAddress().getPinCode())));
+        if (shop.getPhoneNumber() != null)
+            section.setShopPhone(shop.getPhoneNumber().getPhoneNumber());
+        section.setShopTotal(subOrder.getTotalAmount());
+        section.setItems(subOrder.getItems().stream().map(item -> {
+            OrderItemResponse i = new OrderItemResponse();
+            i.setOrderItemId(item.getId());
+            i.setProductName(item.getProductName());
+            i.setBrand(item.getBrand());
+            i.setUnit(item.getUnit());
+            i.setUnitValue(item.getUnitValue());
+            i.setMrp(item.getMrp());
+            i.setSellingPrice(item.getSellingPrice());
+            i.setQuantity(item.getQuantity());
+            i.setGstSlab(item.getGstSlab());
+            i.setGstAmount(item.getGstAmount());
+            i.setLineTotal(item.getLineTotal());
+            return i;
+        }).toList());
 
         CustomerInvoiceResponse r = new CustomerInvoiceResponse();
-        r.setOrderNumber(parentOrder.getOrderNumber());
+        r.setOrderNumber(subOrder.getOrderNumber());
         r.setOrderDate(parentOrder.getCreatedAt());
         r.setCustomerPhone(parentOrder.getCustomer().getPhoneNumber());
-        r.setDeliveryAddress(parentOrder.getDeliveryAddress());
-        r.setDeliveryType(parentOrder.getDeliveryType());
-        r.setShops(shopSections);
-        r.setSubtotal(parentOrder.getSubtotal());
-        r.setTotalGst(parentOrder.getTotalGst());
-        r.setDeliveryCharge(0.0);
-        r.setTotalAmount(parentOrder.getTotalAmount());
-        if (!anyConfirmed)
-            r.setMessage("Invoice not available yet. Order has not been confirmed by the shop.");
+        r.setDeliveryAddress(subOrder.getDeliveryAddress());
+        r.setDeliveryType(subOrder.getDeliveryType());
+        r.setShops(List.of(section));
+        r.setSubtotal(subOrder.getSubtotal());
+        r.setTotalGst(subOrder.getTotalGst());
+        r.setDeliveryCharge(subOrder.getDeliveryCharge());
+        r.setTotalAmount(subOrder.getTotalAmount());
         return r;
     }
 

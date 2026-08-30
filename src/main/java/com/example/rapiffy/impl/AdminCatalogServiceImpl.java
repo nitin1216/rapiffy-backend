@@ -21,19 +21,25 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
     private final ProductVariantRepository productVariantRepository;
     private final VariantAttributeTypeRepository variantAttributeTypeRepository;
     private final VariantAttributeValueRepository variantAttributeValueRepository;
+    private final ShopProductImageRepository shopProductImageRepository;
+    private final ProductVariantImageRepository productVariantImageRepository;
 
     public AdminCatalogServiceImpl(ProfileRepository profileRepository,
                                    ShopProductRepository shopProductRepository,
                                    SubCategoryRepository subCategoryRepository,
                                    ProductVariantRepository productVariantRepository,
                                    VariantAttributeTypeRepository variantAttributeTypeRepository,
-                                   VariantAttributeValueRepository variantAttributeValueRepository) {
+                                   VariantAttributeValueRepository variantAttributeValueRepository,
+                                   ShopProductImageRepository shopProductImageRepository,
+                                   ProductVariantImageRepository productVariantImageRepository) {
         this.profileRepository = profileRepository;
         this.shopProductRepository = shopProductRepository;
         this.subCategoryRepository = subCategoryRepository;
         this.productVariantRepository = productVariantRepository;
         this.variantAttributeTypeRepository = variantAttributeTypeRepository;
         this.variantAttributeValueRepository = variantAttributeValueRepository;
+        this.shopProductImageRepository = shopProductImageRepository;
+        this.productVariantImageRepository = productVariantImageRepository;
     }
 
     // ── MY PRODUCTS (tree: Category → SubCategory → Products) ────────────────
@@ -409,6 +415,9 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
         r.setStockQuantity(sp.getStockQuantity());
         r.setThresholdQuantity(sp.getThresholdQuantity());
         r.setImageUrl(sp.getImageUrl());
+        r.setImageUrls(shopProductImageRepository
+                .findByShopProductIdOrderByDisplayOrderAsc(sp.getId())
+                .stream().map(ShopProductImage::getImageUrl).toList());
         r.setShortDescription(sp.getShortDescription());
         r.setExpiryDate(sp.getExpiryDate());
         r.setHasVariants(sp.isHasVariants());
@@ -434,6 +443,9 @@ public class AdminCatalogServiceImpl implements AdminCatalogService {
                     vr.setStockQuantity(v.getStockQuantity());
                     vr.setThresholdQuantity(v.getThresholdQuantity());
                     vr.setImageUrl(v.getImageUrl());
+                    vr.setImageUrls(productVariantImageRepository
+                            .findByVariantIdOrderByDisplayOrderAsc(v.getId())
+                            .stream().map(ProductVariantImage::getImageUrl).toList());
                     vr.setExpiryDate(v.getExpiryDate());
                     vr.setActive(v.isActive());
                     // Build attributes map e.g. { "Size": "8", "Colour": "Red" }

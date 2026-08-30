@@ -63,23 +63,23 @@ public class CustomerOrderController {
     }
 
     @Operation(
-        summary = "Get order invoice as JSON",
-        description = "Returns full order invoice with all shops and items grouped. "
-            + "Available once at least one sub-order is confirmed by Admin."
+        summary = "Get sub-order invoice as JSON",
+        description = "Returns invoice for a single shop's sub-order. Available once the shop confirms the order."
     )
-    @GetMapping("/{parentOrderId}/invoice")
-    public ResponseEntity<CustomerInvoiceResponse> getCustomerInvoice(@PathVariable Long parentOrderId) {
-        return ResponseEntity.ok(customerOrderService.getCustomerInvoice(getCurrentUserId(), parentOrderId));
+    @GetMapping("/{parentOrderId}/suborders/{subOrderId}/invoice")
+    public ResponseEntity<CustomerInvoiceResponse> getSubOrderInvoice(
+            @PathVariable Long parentOrderId, @PathVariable Long subOrderId) {
+        return ResponseEntity.ok(customerOrderService.getSubOrderInvoice(getCurrentUserId(), parentOrderId, subOrderId));
     }
 
     @Operation(
-        summary = "Download order invoice as PDF",
-        description = "Downloads full order invoice PDF showing all shops grouped with grand total. "
-            + "Each shop section shows their items and shop-level total."
+        summary = "Download sub-order invoice as PDF",
+        description = "Downloads invoice PDF for a single shop's sub-order."
     )
-    @GetMapping(value = "/{parentOrderId}/invoice/pdf", produces = "application/pdf")
-    public ResponseEntity<byte[]> downloadCustomerInvoicePdf(@PathVariable Long parentOrderId) {
-        CustomerInvoiceResponse invoice = customerOrderService.getCustomerInvoice(getCurrentUserId(), parentOrderId);
+    @GetMapping(value = "/{parentOrderId}/suborders/{subOrderId}/invoice/pdf", produces = "application/pdf")
+    public ResponseEntity<byte[]> downloadSubOrderInvoicePdf(
+            @PathVariable Long parentOrderId, @PathVariable Long subOrderId) {
+        CustomerInvoiceResponse invoice = customerOrderService.getSubOrderInvoice(getCurrentUserId(), parentOrderId, subOrderId);
         byte[] pdf = customerInvoicePdfService.generate(invoice);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);

@@ -15,7 +15,6 @@ public class AddMasterProductRequest {
     private String unit;
     private String unitValue;
     private Double mrp;
-    private String imageUrl;
     private String shortDescription;
     private String longDescription;
     private boolean hasVariants = false;

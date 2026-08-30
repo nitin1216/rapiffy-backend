@@ -19,6 +19,7 @@ public class ShopProductResponse {
     private Integer stockQuantity;
     private Integer thresholdQuantity;
     private String imageUrl;
+    private List<String> imageUrls;
     private String shortDescription;
     private LocalDate expiryDate;
     private boolean hasVariants;

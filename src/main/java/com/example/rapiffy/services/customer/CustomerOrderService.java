@@ -16,5 +16,5 @@ public interface CustomerOrderService {
 
     ParentOrderResponse getOrderDetail(Long userId, Long parentOrderId);
 
-    CustomerInvoiceResponse getCustomerInvoice(Long userId, Long parentOrderId);
+    CustomerInvoiceResponse getSubOrderInvoice(Long userId, Long parentOrderId, Long subOrderId);
 }

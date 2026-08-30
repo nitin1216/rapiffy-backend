@@ -61,9 +61,13 @@ public class MasterProduct {
     @Column(name = "mrp")
     private Double mrp;
 
-    // Product image URL
+    // Thumbnail image URL (set automatically on first image upload)
     @Column(name = "image_url")
     private String imageUrl;
+
+    // Full image gallery
+    @OneToMany(mappedBy = "masterProduct", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<MasterProductImage> images = new java.util.ArrayList<>();
 
     // Short one-line description (e.g. "Premium aged basmati rice")
     @Column(name = "short_description")

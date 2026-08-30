@@ -108,6 +108,10 @@ public class ShopProduct {
     @Column(name = "has_variants", nullable = false)
     private boolean hasVariants = false;
 
+    // Image gallery (first image = thumbnail stored in imageUrl)
+    @OneToMany(mappedBy = "shopProduct", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<ShopProductImage> images = new java.util.ArrayList<>();
+
     // List of variants (only used when hasVariants = true)
     @OneToMany(mappedBy = "parentShopProduct", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<ProductVariant> variants = new java.util.ArrayList<>();

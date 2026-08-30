@@ -16,7 +16,6 @@ public class UpdateMasterProductRequest {
     private String unit;
     private String unitValue;
     private Double mrp;
-    private String imageUrl;
     private String shortDescription;
     private String longDescription;
 

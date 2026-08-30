@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.crypto.Mac;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 
@@ -112,7 +113,7 @@ public class RazorpayWebhookController {
     private boolean verifySignature(String payload, String expectedSignature) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec secretKey = new SecretKeySpec(
+            SecretKey secretKey = new SecretKeySpec(
                     razorpayConfig.getWebhookSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
             mac.init(secretKey);
             byte[] hash = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
@@ -120,14 +121,12 @@ public class RazorpayWebhookController {
             // Convert to hex string
             StringBuilder hexString = new StringBuilder();
             for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
+                hexString.append(String.format("%02x", b));
             }
 
             return hexString.toString().equals(expectedSignature);
         } catch (Exception e) {
-            log.error("Signature verification error: {}", e.getMessage());
+            log.error("Signature verification error: {}", e.getMessage(), e);
             return false;
         }
     }

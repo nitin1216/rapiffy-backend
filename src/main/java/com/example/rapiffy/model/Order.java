@@ -21,7 +21,12 @@ import java.util.List;
  *       PENDING → REJECTED (by admin)
  */
 @Entity
-@Table(name = "orders")
+@Table(name = "orders", indexes = {
+        @Index(name = "idx_order_parent",   columnList = "parent_order_id"),
+        @Index(name = "idx_order_customer", columnList = "customer_id"),
+        @Index(name = "idx_order_shop",     columnList = "shop_id"),
+        @Index(name = "idx_order_status",   columnList = "status")
+})
 @Data
 public class Order {
 

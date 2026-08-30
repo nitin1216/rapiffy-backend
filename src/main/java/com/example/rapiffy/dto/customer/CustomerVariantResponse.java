@@ -3,6 +3,7 @@ package com.example.rapiffy.dto.customer;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -18,6 +19,7 @@ public class CustomerVariantResponse {
     private Double sellingPrice;
     private Integer stockQuantity;
     private String imageUrl;
+    private List<String> imageUrls;
 
     // e.g. { "Size": "8", "Colour": "Red" }
     private Map<String, String> attributes;

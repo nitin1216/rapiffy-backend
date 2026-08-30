@@ -79,6 +79,10 @@ public class ProductVariant {
     @OneToMany(mappedBy = "productVariant", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<VariantAttributeValue> attributeValues = new java.util.ArrayList<>();
 
+    // Image gallery (first image = thumbnail stored in imageUrl)
+    @OneToMany(mappedBy = "variant", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<ProductVariantImage> images = new java.util.ArrayList<>();
+
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
 

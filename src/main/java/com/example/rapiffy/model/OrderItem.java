@@ -10,7 +10,10 @@ import lombok.Data;
  * shopProduct covers both plain products and variants since variant is now a first-class product.
  */
 @Entity
-@Table(name = "order_items")
+@Table(name = "order_items", indexes = {
+        @Index(name = "idx_orderitem_order",       columnList = "order_id"),
+        @Index(name = "idx_orderitem_shopproduct", columnList = "shop_product_id")
+})
 @Data
 public class OrderItem {
 

@@ -43,6 +43,7 @@ public class SecurityConfig {
                 // Auth required: customer orders and cart
                 .requestMatchers("/v1/customer/orders/**").authenticated()
                 .requestMatchers("/v1/customer/cart/**").authenticated()
+                .requestMatchers("/v1/customer/wishlist/**").authenticated()
                 .requestMatchers("/v1/customer/profile/**").authenticated()
                 .requestMatchers("/v1/customer/payment/**").authenticated()
                 // Open: Swagger UI
