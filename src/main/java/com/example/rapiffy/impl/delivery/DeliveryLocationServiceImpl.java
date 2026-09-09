@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
+//import java.time.temporal.ChronoUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -82,7 +82,7 @@ public class DeliveryLocationServiceImpl implements DeliveryLocationService {
         r.setAccuracy(location.getAccuracy());
         r.setBatteryLevel(location.getBatteryLevel());
         r.setRecordedAt(location.getRecordedAt());
-        r.setSecondsSinceUpdate(ChronoUnit.SECONDS.between(location.getRecordedAt(), LocalDateTime.now()));
+//        r.setSecondsSinceUpdate(ChronoUnit.SECONDS.between(location.getRecordedAt(), LocalDateTime.now()));
         return r;
     }
 }
