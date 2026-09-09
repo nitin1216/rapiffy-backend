@@ -17,4 +17,7 @@ public interface PlatformService {
 
     // Global default commission rate
     PlatformActionResponse updateDefaultCommissionRate(UpdateDefaultCommissionRequest request);
+
+    // Delivery charge rate per km (set by SuperAdmin)
+    PlatformActionResponse updateDeliveryChargeRate(Double ratePerKm);
 }

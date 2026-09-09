@@ -1,12 +1,16 @@
 package com.example.rapiffy.controller;
 
 import com.example.rapiffy.dto.admin.AdminProfileResponse;
+import com.example.rapiffy.dto.admin.DeliveryPersonResponse;
 import com.example.rapiffy.dto.admin.UpdateAdminProfileRequest;
 import com.example.rapiffy.dto.admin.UpdateShopLocationRequest;
+import com.example.rapiffy.dto.delivery.OnboardDeliveryPersonRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * Admin Profile Controller — APIs for shopkeeper to view/update their profile.
@@ -39,4 +43,16 @@ public interface AdminProfileController {
     )
     @PutMapping("/location")
     ResponseEntity<Void> updateShopLocation(@RequestBody UpdateShopLocationRequest request);
+
+    @Operation(summary = "Onboard a delivery person for this shop")
+    @PostMapping("/delivery-person")
+    ResponseEntity<DeliveryPersonResponse> onboardDeliveryPerson(@RequestBody OnboardDeliveryPersonRequest request);
+
+    @Operation(summary = "Get all delivery persons for this shop")
+    @GetMapping("/delivery-persons")
+    ResponseEntity<List<DeliveryPersonResponse>> getDeliveryPersons();
+
+    @Operation(summary = "Deactivate a delivery person")
+    @PutMapping("/delivery-person/{deliveryPersonId}/deactivate")
+    ResponseEntity<DeliveryPersonResponse> deactivateDeliveryPerson(@PathVariable Long deliveryPersonId);
 }

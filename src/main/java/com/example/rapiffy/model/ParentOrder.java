@@ -51,9 +51,6 @@ public class ParentOrder {
 
     // ─── DELIVERY (shared across all sub-orders) ─────────────────────────────
 
-    @Column(name = "delivery_type")
-    private String deliveryType;           // DELIVERY or SELF
-
     @Column(name = "delivery_address", columnDefinition = "TEXT")
     private String deliveryAddress;        // same address for all shops
 
@@ -67,6 +64,9 @@ public class ParentOrder {
 
     @Column(name = "total_gst")
     private Double totalGst;
+
+    @Column(name = "delivery_charge", nullable = false)
+    private Double deliveryCharge = 0.0;
 
     @Column(name = "total_amount", nullable = false)
     private Double totalAmount;

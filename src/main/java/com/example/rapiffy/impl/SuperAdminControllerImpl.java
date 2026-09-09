@@ -1,9 +1,12 @@
 package com.example.rapiffy.impl;
 
 import com.example.rapiffy.dto.admin.AdminProfileResponse;
+import com.example.rapiffy.dto.admin.DeliveryPersonResponse;
 import com.example.rapiffy.controller.SuperAdminController;
+import com.example.rapiffy.dto.delivery.OnboardDeliveryPersonRequest;
 import com.example.rapiffy.dto.superadmin.*;
 import com.example.rapiffy.model.Category;
+import com.example.rapiffy.services.DeliveryPersonService;
 import com.example.rapiffy.services.SuperAdminService;
 import com.example.rapiffy.sftp.ImageUploadService;
 import org.springframework.http.HttpStatus;
@@ -19,10 +22,14 @@ public class SuperAdminControllerImpl implements SuperAdminController {
 
     private final SuperAdminService superAdminService;
     private final ImageUploadService imageUploadService;
+    private final DeliveryPersonService deliveryPersonService;
 
-    public SuperAdminControllerImpl(SuperAdminService superAdminService, ImageUploadService imageUploadService) {
+    public SuperAdminControllerImpl(SuperAdminService superAdminService,
+                                    ImageUploadService imageUploadService,
+                                    DeliveryPersonService deliveryPersonService) {
         this.superAdminService = superAdminService;
         this.imageUploadService = imageUploadService;
+        this.deliveryPersonService = deliveryPersonService;
     }
 
     // ── CATEGORY ─────────────────────────────────────────────────────────────
@@ -111,6 +118,24 @@ public class SuperAdminControllerImpl implements SuperAdminController {
     @Override
     public ResponseEntity<SuperAdminActionResponse> removeAdmin(Long adminUserId) {
         return ResponseEntity.ok(superAdminService.removeAdmin(adminUserId));
+    }
+
+    // ── DELIVERY PERSON ─────────────────────────────────────────────────────────────────────
+
+    @Override
+    public ResponseEntity<DeliveryPersonResponse> onboardDeliveryPerson(Long shopProfileId, OnboardDeliveryPersonRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(deliveryPersonService.onboardBySuperAdmin(shopProfileId, request));
+    }
+
+    @Override
+    public ResponseEntity<List<DeliveryPersonResponse>> getDeliveryPersonsByShop(Long shopProfileId) {
+        return ResponseEntity.ok(deliveryPersonService.getDeliveryPersonsByShop(shopProfileId));
+    }
+
+    @Override
+    public ResponseEntity<DeliveryPersonResponse> deactivateDeliveryPerson(Long deliveryPersonId) {
+        return ResponseEntity.ok(deliveryPersonService.deactivate(deliveryPersonId));
     }
 
     @Override

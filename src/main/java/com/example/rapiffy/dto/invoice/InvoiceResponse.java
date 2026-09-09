@@ -1,6 +1,7 @@
 package com.example.rapiffy.dto.invoice;
 
 import com.example.rapiffy.dto.order.OrderItemResponse;
+import com.example.rapiffy.enums.DeliveryType;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -35,5 +36,5 @@ public class InvoiceResponse {
     private Double totalAmount;
 
     // Delivery
-    private String deliveryType;
+    private DeliveryType deliveryType;
 }

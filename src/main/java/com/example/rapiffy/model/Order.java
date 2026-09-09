@@ -1,6 +1,7 @@
 package com.example.rapiffy.model;
 
 import com.example.rapiffy.enums.CancelledBy;
+import com.example.rapiffy.enums.DeliveryType;
 import com.example.rapiffy.enums.OrderStatus;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
@@ -77,11 +78,29 @@ public class Order {
 
     // ─── DELIVERY ────────────────────────────────────────────────────────────
 
-    @Column(name = "delivery_type")    // "SELF" or "DELIVERY"
-    private String deliveryType;
+    // How the shop fulfills this order: SELF (shop's own delivery boy) or COURIER (3rd party, future)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "delivery_type", length = 20)
+    private DeliveryType deliveryType = DeliveryType.SELF;
 
     @Column(name = "delivery_address", columnDefinition = "TEXT")
     private String deliveryAddress;
+
+    @Column(name = "delivery_latitude")
+    private String deliveryLatitude;
+
+    @Column(name = "delivery_longitude")
+    private String deliveryLongitude;
+
+    // Delivery person assigned by Admin (null until assigned)
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "delivery_person_id")
+    private User deliveryPerson;
+
+    // When the delivery person was assigned
+    @Column(name = "assigned_at")
+    private LocalDateTime assignedAt;
 
     // ─── STATUS ──────────────────────────────────────────────────────────────
 

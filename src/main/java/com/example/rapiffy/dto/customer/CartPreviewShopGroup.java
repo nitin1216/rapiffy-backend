@@ -11,5 +11,6 @@ public class CartPreviewShopGroup {
     private List<CartPreviewItemResponse> items;
     private Double shopSubtotal;
     private Double shopGst;
+    private Double shopDeliveryCharge;
     private Double shopTotal;
 }

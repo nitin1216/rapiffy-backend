@@ -26,6 +26,7 @@ public class CustomerCartServiceImpl implements CustomerCartService {
     private final UserRepository userRepository;
     private final CustomerAddressRepository customerAddressRepository;
     private final CustomerOrderService customerOrderService;
+    private final com.example.rapiffy.repos.PlatformConfigRepository platformConfigRepository;
 
     public CustomerCartServiceImpl(CartRepository cartRepository,
                                    CartItemRepository cartItemRepository,
@@ -33,7 +34,8 @@ public class CustomerCartServiceImpl implements CustomerCartService {
                                    ProductVariantRepository productVariantRepository,
                                    UserRepository userRepository,
                                    CustomerAddressRepository customerAddressRepository,
-                                   @Lazy CustomerOrderService customerOrderService) {
+                                   @Lazy CustomerOrderService customerOrderService,
+                                   com.example.rapiffy.repos.PlatformConfigRepository platformConfigRepository) {
         this.cartRepository = cartRepository;
         this.cartItemRepository = cartItemRepository;
         this.shopProductRepository = shopProductRepository;
@@ -41,6 +43,7 @@ public class CustomerCartServiceImpl implements CustomerCartService {
         this.userRepository = userRepository;
         this.customerAddressRepository = customerAddressRepository;
         this.customerOrderService = customerOrderService;
+        this.platformConfigRepository = platformConfigRepository;
     }
 
     @Override
@@ -184,31 +187,35 @@ public class CustomerCartServiceImpl implements CustomerCartService {
                 })
                 .toList();
 
-        // Resolve delivery address
-        String deliveryAddress = null;
+        // Resolve delivery address ID
+        Long resolvedAddressId;
         if (request.getAddressId() != null) {
             CustomerAddress address = customerAddressRepository.findById(request.getAddressId())
                     .orElseThrow(() -> new ApiException("Address not found", HttpStatus.NOT_FOUND));
             if (!address.getCustomer().getId().equals(userId))
                 throw new ApiException("Access denied for this address", HttpStatus.FORBIDDEN);
-            deliveryAddress = buildAddressString(address);
+            resolvedAddressId = address.getId();
         } else {
             CustomerAddress address = customerAddressRepository.findByCustomerAndIsDefault(customer, true)
                     .orElseThrow(() -> new ApiException(
                             "No address selected and no default address saved.", HttpStatus.BAD_REQUEST));
-            deliveryAddress = buildAddressString(address);
+            resolvedAddressId = address.getId();
         }
 
         PlaceOrderRequest orderRequest = new PlaceOrderRequest();
-        orderRequest.setDeliveryType("DELIVERY");
-        orderRequest.setDeliveryAddress(deliveryAddress);
+        orderRequest.setDeliveryAddressId(resolvedAddressId);
         orderRequest.setDeliveryInstruction(request.getDeliveryInstruction());
         orderRequest.setItems(items);
         orderRequest.setPaymentMethod(request.getPaymentMethod());
 
-        cartItemRepository.deleteAll(selectedItems);
+        ParentOrderResponse response = customerOrderService.placeOrder(userId, orderRequest);
 
-        return customerOrderService.placeOrder(userId, orderRequest);
+        // Delete selected cart items after order is placed successfully
+        // For COD: delete now. For online: delete after payment verification (handled in verifyPayment)
+        if (request.getPaymentMethod() == com.example.rapiffy.enums.PaymentMethod.COD)
+            cartItemRepository.deleteAllInBatch(selectedItems);
+
+        return response;
     }
 
     @Override
@@ -226,7 +233,20 @@ public class CustomerCartServiceImpl implements CustomerCartService {
         User customer = getUser(userId);
         Cart cart = getCart(customer);
 
-        // Group resolved items by shopId
+        // Load platform config for delivery rate
+        double ratePerKm = 5.0; // default fallback
+        com.example.rapiffy.model.PlatformConfig platformConfig = platformConfigRepository.findAll().stream().findFirst().orElse(null);
+        if (platformConfig != null && platformConfig.getDeliveryChargeRatePerKm() != null)
+            ratePerKm = platformConfig.getDeliveryChargeRatePerKm();
+
+        // Get customer's default address for distance calculation
+        CustomerAddress defaultAddress = customerAddressRepository
+                .findByCustomerAndIsDefault(customer, true).orElse(null);
+        String custLat = defaultAddress != null && defaultAddress.getAddress() != null
+                ? defaultAddress.getAddress().getLatitude() : null;
+        String custLng = defaultAddress != null && defaultAddress.getAddress() != null
+                ? defaultAddress.getAddress().getLongitude() : null;
+
         Map<Long, List<CartPreviewItemResponse>> byShop = new LinkedHashMap<>();
         Map<Long, Profile> shopById = new LinkedHashMap<>();
         double subtotal = 0.0;
@@ -313,11 +333,19 @@ public class CustomerCartServiceImpl implements CustomerCartService {
         response.setTotalItems(totalItems);
         response.setSubtotal(Math.round(subtotal * 100.0) / 100.0);
         response.setTotalGst(Math.round(totalGst * 100.0) / 100.0);
-        response.setGrandTotal(Math.round((subtotal + totalGst) * 100.0) / 100.0);
+
+        // Calculate delivery charge per shop
+        double totalDeliveryCharge = 0.0;
+        final double finalRatePerKm = ratePerKm;
 
         if (byShop.size() == 1) {
             response.setMultiShop(false);
-            response.setItems(byShop.values().iterator().next());
+            List<CartPreviewItemResponse> shopItems = byShop.values().iterator().next();
+            Profile shop = shopById.values().iterator().next();
+            double shopSubtotal = shopItems.stream().mapToDouble(i -> i.getSellingPrice() * i.getQuantity()).sum();
+            double shopDeliveryCharge = calcDeliveryCharge(shop, shopSubtotal, custLat, custLng, finalRatePerKm);
+            totalDeliveryCharge = shopDeliveryCharge;
+            response.setItems(shopItems);
         } else {
             response.setMultiShop(true);
             List<CartPreviewShopGroup> shops = new ArrayList<>();
@@ -327,6 +355,8 @@ public class CustomerCartServiceImpl implements CustomerCartService {
 
                 double shopSubtotal = shopItems.stream().mapToDouble(i -> i.getSellingPrice() * i.getQuantity()).sum();
                 double shopGst = shopItems.stream().mapToDouble(CartPreviewItemResponse::getGstAmount).sum();
+                double shopDeliveryCharge = calcDeliveryCharge(shop, shopSubtotal, custLat, custLng, finalRatePerKm);
+                totalDeliveryCharge += shopDeliveryCharge;
 
                 CartPreviewShopGroup group = new CartPreviewShopGroup();
                 group.setShopId(shop.getId());
@@ -334,13 +364,25 @@ public class CustomerCartServiceImpl implements CustomerCartService {
                 group.setItems(shopItems);
                 group.setShopSubtotal(Math.round(shopSubtotal * 100.0) / 100.0);
                 group.setShopGst(Math.round(shopGst * 100.0) / 100.0);
-                group.setShopTotal(Math.round((shopSubtotal + shopGst) * 100.0) / 100.0);
+                group.setShopDeliveryCharge(Math.round(shopDeliveryCharge * 100.0) / 100.0);
+                group.setShopTotal(Math.round((shopSubtotal + shopGst + shopDeliveryCharge) * 100.0) / 100.0);
                 shops.add(group);
             }
             response.setShops(shops);
         }
 
+        response.setDeliveryCharge(Math.round(totalDeliveryCharge * 100.0) / 100.0);
+        response.setGrandTotal(Math.round((subtotal + totalGst + totalDeliveryCharge) * 100.0) / 100.0);
         return response;
+    }
+
+    private double calcDeliveryCharge(Profile shop, double shopSubtotal, String custLat, String custLng, double ratePerKm) {
+        if (shop.getFreeDeliveryAboveAmount() != null && shopSubtotal >= shop.getFreeDeliveryAboveAmount())
+            return 0.0;
+        if (shop.getAddress() == null) return 0.0;
+        double distance = calculateDistanceKm(
+                shop.getAddress().getLatitude(), shop.getAddress().getLongitude(), custLat, custLng);
+        return Math.round(2 * distance * ratePerKm * 100.0) / 100.0;
     }
 
     // ── HELPERS ──────────────────────────────────────────────────────────────

@@ -41,6 +41,9 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public SignUpResponse signUp(SignUpRequest request) {
+        if (request.getRole() == com.example.rapiffy.enums.Roles.DELIVERY)
+            throw new ApiException("Delivery persons cannot self-register. Contact your admin.", HttpStatus.FORBIDDEN);
+
         // 1. Check if phone already registered
         if (userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
             throw new ApiException("Phone number already registered", HttpStatus.CONFLICT);

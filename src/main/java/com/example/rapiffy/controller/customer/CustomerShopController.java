@@ -79,6 +79,18 @@ public class CustomerShopController {
     }
 
     @Operation(
+        summary = "Get products by subcategory from nearby shops",
+        description = "Returns all active products from nearby shops for a specific subcategory."
+    )
+    @GetMapping("/catalog/subcategory/{subCategoryId}")
+    public ResponseEntity<List<CustomerProductResponse>> getProductsBySubCategory(
+            @RequestParam double lat,
+            @RequestParam double lng,
+            @PathVariable Long subCategoryId) {
+        return ResponseEntity.ok(customerShopService.getProductsBySubCategory(lat, lng, subCategoryId));
+    }
+
+    @Operation(
         summary = "Get product by ID",
         description = "Returns full product details for a given shop product ID."
     )

@@ -13,13 +13,13 @@ public class ParentOrderResponse {
     private String orderNumber;
 
     // Delivery info (shared across all sub-orders)
-    private String deliveryType;
     private String deliveryAddress;
     private String deliveryInstruction;
 
     // Pricing (sum of all sub-orders)
     private Double subtotal;
     private Double totalGst;
+    private Double deliveryCharge;
     private Double totalAmount;
 
     // Overall status

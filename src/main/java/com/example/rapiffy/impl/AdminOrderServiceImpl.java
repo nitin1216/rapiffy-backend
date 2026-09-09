@@ -1,5 +1,6 @@
 package com.example.rapiffy.impl;
 
+import com.example.rapiffy.dto.admin.DeliveryPersonResponse;
 import com.example.rapiffy.dto.invoice.InvoiceResponse;
 import com.example.rapiffy.dto.order.OrderDetailResponse;
 import com.example.rapiffy.dto.order.OrderItemResponse;
@@ -7,6 +8,8 @@ import com.example.rapiffy.dto.order.OrderSummaryResponse;
 import com.example.rapiffy.enums.CancelledBy;
 import com.example.rapiffy.enums.OrderStatus;
 import com.example.rapiffy.exceptions.ApiException;
+import com.example.rapiffy.services.NotificationService;
+import com.example.rapiffy.impl.DeliveryPersonServiceImpl;
 import com.example.rapiffy.model.*;
 import com.example.rapiffy.repos.*;
 import com.example.rapiffy.services.AdminOrderService;
@@ -27,17 +30,33 @@ public class AdminOrderServiceImpl implements AdminOrderService {
     private final ProfileRepository profileRepository;
     private final ProductVariantRepository productVariantRepository;
     private final ParentOrderRepository parentOrderRepository;
+    private final DeliveryPersonRepository deliveryPersonRepository;
+    private final DeliveryPersonServiceImpl deliveryPersonService;
+    private final NotificationService notificationService;
 
     public AdminOrderServiceImpl(OrderRepository orderRepository,
                                  ShopProductRepository shopProductRepository,
                                  ProfileRepository profileRepository,
                                  ProductVariantRepository productVariantRepository,
-                                 ParentOrderRepository parentOrderRepository) {
+                                 ParentOrderRepository parentOrderRepository,
+                                 DeliveryPersonRepository deliveryPersonRepository,
+                                 DeliveryPersonServiceImpl deliveryPersonService,
+                                 NotificationService notificationService) {
         this.orderRepository = orderRepository;
         this.shopProductRepository = shopProductRepository;
         this.profileRepository = profileRepository;
         this.productVariantRepository = productVariantRepository;
         this.parentOrderRepository = parentOrderRepository;
+        this.deliveryPersonRepository = deliveryPersonRepository;
+        this.deliveryPersonService = deliveryPersonService;
+        this.notificationService = notificationService;
+    }
+
+    @Override
+    public List<DeliveryPersonResponse> getDeliveryPersons(Long userId) {
+        Profile shop = getShop(userId);
+        return deliveryPersonRepository.findByShopId(shop.getId())
+                .stream().map(deliveryPersonService::toResponse).collect(Collectors.toList());
     }
 
     @Override
@@ -98,6 +117,7 @@ public class AdminOrderServiceImpl implements AdminOrderService {
                     }
                     if (order.getStatus() == OrderStatus.REJECTED) break;
                 }
+
                 if (order.getStatus() == OrderStatus.REJECTED) {
                     orderRepository.save(order);
                     syncParentOrderStatus(order);
@@ -107,16 +127,16 @@ public class AdminOrderServiceImpl implements AdminOrderService {
                     order.setInvoiceId("INV-" + java.time.LocalDate.now().toString().replace("-", "") + "-" + String.format("%04d", order.getId()));
             }
             case READY -> {
-                if (order.getStatus() != OrderStatus.CONFIRMED) {
+                if (order.getStatus() != OrderStatus.CONFIRMED && order.getStatus() != OrderStatus.DELIVERY_ACCEPTED) {
                     OrderDetailResponse detail = toDetail(order);
-                    detail.setMessage("Order must be CONFIRMED to mark READY");
+                    detail.setMessage("Order must be CONFIRMED or DELIVERY_ACCEPTED to mark READY");
                     return ResponseEntity.badRequest().body(detail);
                 }
             }
             case OUT_FOR_DELIVERY -> {
-                if (order.getStatus() != OrderStatus.READY) {
+                if (order.getStatus() != OrderStatus.COMING_TO_PICK) {
                     OrderDetailResponse detail = toDetail(order);
-                    detail.setMessage("Order must be READY to mark OUT_FOR_DELIVERY");
+                    detail.setMessage("Order must be COMING_TO_PICK to mark OUT_FOR_DELIVERY");
                     return ResponseEntity.badRequest().body(detail);
                 }
             }
@@ -150,6 +170,28 @@ public class AdminOrderServiceImpl implements AdminOrderService {
         order.setStatus(status);
         orderRepository.save(order);
         syncParentOrderStatus(order);
+
+        // Notifications
+        Long customerId = order.getCustomer().getId();
+        Long deliveryPersonId = order.getDeliveryPerson() != null ? order.getDeliveryPerson().getId() : null;
+        String orderNum = order.getOrderNumber();
+
+        if (status == OrderStatus.CONFIRMED) {
+            notificationService.send(customerId, "Order Confirmed", "Your order " + orderNum + " has been confirmed by the shop.", orderId, orderNum, status);
+        } else if (status == OrderStatus.READY) {
+            notificationService.send(customerId, "Order Ready", "Your order " + orderNum + " is packed and ready.", orderId, orderNum, status);
+            if (deliveryPersonId != null)
+                notificationService.send(deliveryPersonId, "Order Ready for Pickup", "Order " + orderNum + " is ready. Head to the shop.", orderId, orderNum, status);
+        } else if (status == OrderStatus.OUT_FOR_DELIVERY) {
+            notificationService.send(customerId, "Out for Delivery", "Your order " + orderNum + " is on the way!", orderId, orderNum, status);
+            if (deliveryPersonId != null)
+                notificationService.send(deliveryPersonId, "Out for Delivery", "Order " + orderNum + " marked out for delivery.", orderId, orderNum, status);
+        } else if (status == OrderStatus.DELIVERED) {
+            notificationService.send(customerId, "Order Delivered", "Your order " + orderNum + " has been delivered.", orderId, orderNum, status);
+            if (deliveryPersonId != null)
+                notificationService.send(deliveryPersonId, "Order Delivered", "Order " + orderNum + " marked as delivered.", orderId, orderNum, status);
+        }
+
         return ResponseEntity.ok(toDetail(order));
     }
 
@@ -230,7 +272,10 @@ public class AdminOrderServiceImpl implements AdminOrderService {
             OrderStatus.PAYMENT_PENDING,
             OrderStatus.PENDING,
             OrderStatus.CONFIRMED,
+            OrderStatus.DELIVERY_ACCEPTED,
+            OrderStatus.DELIVERY_REJECTED,
             OrderStatus.READY,
+            OrderStatus.COMING_TO_PICK,
             OrderStatus.OUT_FOR_DELIVERY,
             OrderStatus.DELIVERED
         );

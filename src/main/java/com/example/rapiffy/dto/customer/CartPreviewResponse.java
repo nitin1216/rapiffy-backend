@@ -12,5 +12,6 @@ public class CartPreviewResponse {
     private Integer totalItems;
     private Double subtotal;
     private Double totalGst;
+    private Double deliveryCharge;
     private Double grandTotal;
 }

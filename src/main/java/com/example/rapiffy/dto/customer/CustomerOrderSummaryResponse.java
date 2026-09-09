@@ -15,6 +15,5 @@ public class CustomerOrderSummaryResponse {
     private Double totalGst;
     private Double deliveryCharge;
     private Double totalAmount;
-    private String deliveryType;
     private LocalDateTime createdAt;
 }

@@ -1,5 +1,8 @@
 package com.example.rapiffy.impl;
 
+import com.example.rapiffy.dto.admin.DeliveryPersonResponse;
+import com.example.rapiffy.dto.delivery.AssignDeliveryRequest;
+import com.example.rapiffy.dto.delivery.AssignDeliveryResponse;
 import com.example.rapiffy.dto.invoice.InvoiceResponse;
 import com.example.rapiffy.controller.AdminOrderController;
 import com.example.rapiffy.dto.order.OrderDetailResponse;
@@ -25,13 +28,26 @@ public class AdminOrderControllerImpl implements AdminOrderController {
     private final AdminOrderService orderService;
     private final UserRepository userRepository;
     private final InvoicePdfService invoicePdfService;
+    private final com.example.rapiffy.services.delivery.DeliveryAssignmentService deliveryAssignmentService;
 
     public AdminOrderControllerImpl(AdminOrderService orderService,
                                     UserRepository userRepository,
-                                    InvoicePdfService invoicePdfService) {
+                                    InvoicePdfService invoicePdfService,
+                                    com.example.rapiffy.services.delivery.DeliveryAssignmentService deliveryAssignmentService) {
         this.orderService = orderService;
         this.userRepository = userRepository;
         this.invoicePdfService = invoicePdfService;
+        this.deliveryAssignmentService = deliveryAssignmentService;
+    }
+
+    @Override
+    public ResponseEntity<AssignDeliveryResponse> assignDeliveryPerson(Long orderId, AssignDeliveryRequest request) {
+        return ResponseEntity.ok(deliveryAssignmentService.assignDeliveryPerson(getCurrentUserId(), orderId, request));
+    }
+
+    @Override
+    public ResponseEntity<List<DeliveryPersonResponse>> getDeliveryPersons() {
+        return ResponseEntity.ok(orderService.getDeliveryPersons(getCurrentUserId()));
     }
 
     @Override

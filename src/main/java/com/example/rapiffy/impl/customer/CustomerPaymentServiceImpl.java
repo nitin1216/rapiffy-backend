@@ -8,6 +8,8 @@ import com.example.rapiffy.model.*;
 import com.example.rapiffy.model.payment.*;
 import com.example.rapiffy.repos.*;
 import com.example.rapiffy.repos.payment.*;
+import com.example.rapiffy.model.ShopDeduction;
+import com.example.rapiffy.repos.ShopDeductionRepository;
 import com.example.rapiffy.services.customer.CustomerCartService;
 import com.example.rapiffy.services.customer.CustomerPaymentService;
 import com.razorpay.RazorpayClient;
@@ -41,6 +43,7 @@ public class CustomerPaymentServiceImpl implements CustomerPaymentService {
     private final UserRepository userRepository;
     private final PlatformConfigRepository platformConfigRepository;
     private final PlatformCommissionRepository platformCommissionRepository;
+    private final ShopDeductionRepository shopDeductionRepository;
     private final CustomerCartService cartService;
 
     // ─── 1. INITIATE PAYMENT ─────────────────────────────────────────────────
@@ -166,17 +169,15 @@ public class CustomerPaymentServiceImpl implements CustomerPaymentService {
     @Override
     @Transactional
     public PaymentStatusResponse cancelSubOrder(Long userId, Long subOrderId, CancelSubOrderRequest request) {
-        com.example.rapiffy.model.Order subOrder = orderRepository.findById(subOrderId).orElseThrow(() -> new ApiException("Sub-order not found", HttpStatus.NOT_FOUND));
+        com.example.rapiffy.model.Order subOrder = orderRepository.findById(subOrderId)
+                .orElseThrow(() -> new ApiException("Sub-order not found", HttpStatus.NOT_FOUND));
 
-        // Verify customer owns this order
-        if (!subOrder.getCustomer().getId().equals(userId)) {
+        if (!subOrder.getCustomer().getId().equals(userId))
             throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
-        }
 
-        // Can only cancel if PENDING or PAYMENT_PENDING (admin hasn't confirmed yet)
-        if (subOrder.getStatus() != OrderStatus.PENDING && subOrder.getStatus() != OrderStatus.PAYMENT_PENDING) {
-            throw new ApiException("Cannot cancel. Order already " + subOrder.getStatus(), HttpStatus.BAD_REQUEST);
-        }
+        // Only allowed when PAYMENT_PENDING — customer cancelling before payment completes
+        if (subOrder.getStatus() != OrderStatus.PAYMENT_PENDING)
+            throw new ApiException("Cannot cancel payment. Order is already " + subOrder.getStatus(), HttpStatus.BAD_REQUEST);
 
         // Mark sub-order as cancelled
         subOrder.setStatus(OrderStatus.CANCELLED);
@@ -185,17 +186,12 @@ public class CustomerPaymentServiceImpl implements CustomerPaymentService {
         subOrder.setCancelledAt(LocalDateTime.now());
         orderRepository.save(subOrder);
 
-        // Find payment for parent order
         ParentOrder parentOrder = subOrder.getParentOrder();
-        Payment payment = paymentRepository.findByParentOrderId(parentOrder.getId()).orElseThrow(() -> new ApiException("Payment not found", HttpStatus.NOT_FOUND));
+        Payment payment = paymentRepository.findByParentOrderId(parentOrder.getId())
+                .orElseThrow(() -> new ApiException("Payment not found", HttpStatus.NOT_FOUND));
 
-        // Initiate refund for this sub-order's amount
         initiateRefund(payment, subOrder);
-
-        // Reverse transfer if one was created
         reverseTransferIfExists(subOrder);
-
-        // Update parent order status/refund amount
         updateParentOrderAfterCancellation(parentOrder, payment);
 
         return buildPaymentStatusResponse(payment);
@@ -257,7 +253,17 @@ public class CustomerPaymentServiceImpl implements CustomerPaymentService {
             Double subOrderAmount = subOrder.getTotalAmount();
             Double customerCommission = Math.round(totalCustomerCommission * 100.0) / 100.0;
             Double shopCommission = Math.round(totalShopCommission * 100.0) / 100.0;
-            Double transferAmount = Math.round((subOrderAmount - customerCommission - shopCommission) * 100.0) / 100.0;
+
+            // Fetch and settle any pending deductions for this shop
+            List<ShopDeduction> pendingDeductions = shopDeductionRepository
+                    .findByShopIdAndStatus(shop.getId(), com.example.rapiffy.enums.ShopDeductionStatus.PENDING);
+            double totalDeduction = pendingDeductions.stream().mapToDouble(ShopDeduction::getAmount).sum();
+            totalDeduction = Math.round(totalDeduction * 100.0) / 100.0;
+
+            Double transferAmount = Math.round((subOrderAmount - customerCommission - shopCommission - totalDeduction) * 100.0) / 100.0;
+
+            // Ensure transfer amount is not negative
+            if (transferAmount < 0) transferAmount = 0.0;
 
             try {
                 // Call Razorpay API to create transfer
@@ -293,6 +299,18 @@ public class CustomerPaymentServiceImpl implements CustomerPaymentService {
                 transfer.setStatus(TransferStatus.CREATED);
                 transfer.setTransferredAt(LocalDateTime.now());
                 paymentTransferRepository.save(transfer);
+
+                // Settle pending deductions against this transfer
+                if (!pendingDeductions.isEmpty()) {
+                    for (ShopDeduction deduction : pendingDeductions) {
+                        deduction.setStatus(com.example.rapiffy.enums.ShopDeductionStatus.SETTLED);
+                        deduction.setSettledViaOrder(subOrder);
+                        deduction.setSettledAt(LocalDateTime.now());
+                    }
+                    shopDeductionRepository.saveAll(pendingDeductions);
+                    log.info("Settled {} pending deduction(s) totalling ₹{} for shop {}",
+                            pendingDeductions.size(), totalDeduction, shop.getShopName());
+                }
 
                 // Route commission (customerCommission + shopCommission) to platform commission account
                 double totalCommission = customerCommission + shopCommission;

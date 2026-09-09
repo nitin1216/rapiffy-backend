@@ -41,4 +41,9 @@ public class PlatformControllerImpl implements PlatformController {
     public ResponseEntity<PlatformActionResponse> updateDefaultCommissionRate(UpdateDefaultCommissionRequest request) {
         return ResponseEntity.ok(platformService.updateDefaultCommissionRate(request));
     }
+
+    @Override
+    public ResponseEntity<PlatformActionResponse> updateDeliveryChargeRate(Double ratePerKm) {
+        return ResponseEntity.ok(platformService.updateDeliveryChargeRate(ratePerKm));
+    }
 }

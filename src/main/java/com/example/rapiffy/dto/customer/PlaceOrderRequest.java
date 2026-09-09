@@ -11,10 +11,9 @@ import java.util.List;
 @Data
 public class PlaceOrderRequest {
 
-    @NotNull(message = "deliveryType is required")
-    private String deliveryType;
-
-    private String deliveryAddress;
+    // Must be a saved address — ensures lat/lng is always available for delivery tracking
+    @NotNull(message = "deliveryAddressId is required")
+    private Long deliveryAddressId;
 
     // Optional instruction for the delivery person
     private String deliveryInstruction;

@@ -721,6 +721,7 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         r.setServingRangeInKm(profile.getServingRangeInKm());
         r.setGstNumber(profile.getGstNumber());
         r.setNoOfDeliveryPersons(profile.getNoOfDeliveryPersons());
+        r.setFreeDeliveryAboveAmount(profile.getFreeDeliveryAboveAmount());
         r.setEditUnlistedProducts(profile.isEditUnlistedProducts());
         CBank bank = profile.getBankDetails();
         if (bank != null) {

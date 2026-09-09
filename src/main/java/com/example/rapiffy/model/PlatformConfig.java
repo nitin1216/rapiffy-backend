@@ -39,6 +39,13 @@ public class PlatformConfig {
     @Column(name = "razorpay_commission_account_id")
     private String razorpayCommissionAccountId;
 
+    // ─── DELIVERY CHARGE ──────────────────────────────────────────────────────
+
+    // Rate per km used to calculate delivery charge: 2 * distanceKm * ratePerKm
+    // Set by SuperAdmin
+    @Column(name = "delivery_charge_rate_per_km", nullable = false)
+    private Double deliveryChargeRatePerKm = 5.0;
+
     // ─── CANCELLATION & TRANSFER TIMING ──────────────────────────────────────
 
     // Minutes after payment within which customer can cancel (default: 30 min)

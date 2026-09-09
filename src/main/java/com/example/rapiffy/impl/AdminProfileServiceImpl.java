@@ -75,6 +75,7 @@ public class AdminProfileServiceImpl implements AdminProfileService {
         if (request.getServingRangeInKm() != null) profile.setServingRangeInKm(request.getServingRangeInKm());
         if (request.getGstNumber() != null) profile.setGstNumber(request.getGstNumber());
         if (request.getNoOfDeliveryPersons() != null) profile.setNoOfDeliveryPersons(request.getNoOfDeliveryPersons());
+        if (request.getFreeDeliveryAboveAmount() != null) profile.setFreeDeliveryAboveAmount(request.getFreeDeliveryAboveAmount());
 
         // Sync email to User table
         if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
@@ -127,6 +128,7 @@ public class AdminProfileServiceImpl implements AdminProfileService {
         r.setServingRangeInKm(profile.getServingRangeInKm());
         r.setGstNumber(profile.getGstNumber());
         r.setNoOfDeliveryPersons(profile.getNoOfDeliveryPersons());
+        r.setFreeDeliveryAboveAmount(profile.getFreeDeliveryAboveAmount());
         r.setEditUnlistedProducts(profile.isEditUnlistedProducts());
 
         // Bank (masked)

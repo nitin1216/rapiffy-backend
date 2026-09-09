@@ -71,6 +71,21 @@ public class Profile {
     @Column(name = "no_of_delivery_persons")
     private Integer noOfDeliveryPersons;
 
+    // Free delivery threshold — if order subtotal >= this value, delivery is free
+    // Set by Admin themselves for their own shop
+    @Column(name = "free_delivery_above_amount")
+    private Double freeDeliveryAboveAmount;
+
+    // Delivery persons linked to this shop (role = DELIVERY)
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "shop_delivery_persons",
+        joinColumns = @JoinColumn(name = "shop_profile_id"),
+        inverseJoinColumns = @JoinColumn(name = "user_id"),
+        uniqueConstraints = @UniqueConstraint(columnNames = {"shop_profile_id", "user_id"})
+    )
+    private List<User> deliveryPersons = new ArrayList<>();
+
     // ─── PERSONAL DETAILS ────────────────────────────────────────────────────
 
     @Embedded

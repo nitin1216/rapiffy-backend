@@ -1,5 +1,6 @@
 package com.example.rapiffy.dto.order;
 
+import com.example.rapiffy.enums.DeliveryType;
 import com.example.rapiffy.enums.OrderStatus;
 import lombok.Data;
 
@@ -18,6 +19,6 @@ public class OrderSummaryResponse {
     private Double totalAmount;
     private Integer totalItems;
     private OrderStatus status;
-    private String deliveryType;
+    private DeliveryType deliveryType;
     private LocalDateTime createdAt;
 }

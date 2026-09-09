@@ -25,4 +25,6 @@ public interface CustomerShopService {
     Map<String, List<String>> getProductAttributes(Long shopProductId);
 
     List<CustomerVariantResponse> filterVariants(Long shopProductId, Map<String, String> selectedAttributes);
+
+    List<CustomerProductResponse> getProductsBySubCategory(double lat, double lng, Long subCategoryId);
 }

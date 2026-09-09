@@ -150,6 +150,24 @@ public class CustomerShopServiceImpl implements CustomerShopService {
                 .collect(Collectors.toList());
     }
 
+    // ── PRODUCTS BY SUBCATEGORY (nearby shops) ──────────────────────────────
+
+    @Override
+    public List<CustomerProductResponse> getProductsBySubCategory(double lat, double lng, Long subCategoryId) {
+        return profileRepository.findAllByUserRole(Roles.ADMIN)
+                .stream()
+                .filter(shop -> hasValidLocation(shop) && hasServingRange(shop))
+                .filter(shop -> {
+                    double shopLat = Double.parseDouble(shop.getAddress().getLatitude());
+                    double shopLng = Double.parseDouble(shop.getAddress().getLongitude());
+                    return haversine(lat, lng, shopLat, shopLng) <= shop.getServingRangeInKm();
+                })
+                .flatMap(shop -> shopProductRepository
+                        .findByShopIdAndSubCategoryIdAndIsActive(shop.getId(), subCategoryId, true).stream())
+                .map(p -> toProductResponse(p, lat, lng))
+                .collect(Collectors.toList());
+    }
+
     // ── GET VARIANTS BY PARENT SHOP PRODUCT ID ────────────────────────────────
 
     @Override

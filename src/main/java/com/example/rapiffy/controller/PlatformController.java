@@ -36,4 +36,9 @@ public interface PlatformController {
         description = "Used as fallback when no category-specific rate is set.")
     @PutMapping("/default-commission-rate")
     ResponseEntity<PlatformActionResponse> updateDefaultCommissionRate(@RequestBody UpdateDefaultCommissionRequest request);
+
+    @Operation(summary = "Update delivery charge rate per km",
+        description = "Formula: deliveryCharge = 2 * distanceKm * ratePerKm. Set by SuperAdmin.")
+    @PutMapping("/delivery-charge-rate")
+    ResponseEntity<PlatformActionResponse> updateDeliveryChargeRate(@RequestParam Double ratePerKm);
 }

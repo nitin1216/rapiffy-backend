@@ -1,14 +1,21 @@
 package com.example.rapiffy.impl.customer;
 
 import com.example.rapiffy.dto.customer.*;
+import com.example.rapiffy.dto.customer.cancellation.CancellationItemResponse;
+import com.example.rapiffy.dto.customer.cancellation.CancellationRequestResponse;
 import com.example.rapiffy.dto.order.OrderItemResponse;
+import com.example.rapiffy.enums.CancellationStatus;
 import com.example.rapiffy.enums.OrderStatus;
 import com.example.rapiffy.exceptions.ApiException;
 import com.example.rapiffy.model.*;
 import com.example.rapiffy.repos.*;
 import com.example.rapiffy.repos.CustomerAddressRepository;
+import com.example.rapiffy.repos.payment.PaymentRepository;
+import com.example.rapiffy.repos.payment.PaymentTransferRepository;
+import com.example.rapiffy.repos.payment.RefundRepository;
 import com.example.rapiffy.services.customer.CustomerCartService;
 import com.example.rapiffy.services.customer.CustomerOrderService;
+import com.razorpay.RazorpayClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -32,6 +39,32 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
     private final UserRepository userRepository;
     private final CustomerCartService cartService;
     private final CustomerAddressRepository customerAddressRepository;
+    private final PaymentRepository paymentRepository;
+    private final RefundRepository refundRepository;
+    private final WalletRepository walletRepository;
+    private final WalletTransactionRepository walletTransactionRepository;
+    private final RazorpayClient razorpayClient;
+    private final CancellationRequestRepository cancellationRequestRepository;
+    private final PaymentTransferRepository paymentTransferRepository;
+    private final PlatformConfigRepository platformConfigRepository;
+
+    // ── HAVERSINE DISTANCE ───────────────────────────────────────────────────
+
+    private double calculateDistanceKm(String lat1Str, String lng1Str, String lat2Str, String lng2Str) {
+        if (lat1Str == null || lng1Str == null || lat2Str == null || lng2Str == null) return 0.0;
+        try {
+            double lat1 = Double.parseDouble(lat1Str), lng1 = Double.parseDouble(lng1Str);
+            double lat2 = Double.parseDouble(lat2Str), lng2 = Double.parseDouble(lng2Str);
+            final double R = 6371;
+            double dLat = Math.toRadians(lat2 - lat1), dLng = Math.toRadians(lng2 - lng1);
+            double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                    + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                    * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        } catch (NumberFormatException e) {
+            return 0.0;
+        }
+    }
 
     @Override
     @Transactional
@@ -39,21 +72,19 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         User customer = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException("User not found", HttpStatus.NOT_FOUND));
 
-        if ("DELIVERY".equalsIgnoreCase(request.getDeliveryType())) {
-            // If no address provided → use default saved address
-            if (request.getDeliveryAddress() == null || request.getDeliveryAddress().isBlank()) {
-                request.setDeliveryAddress(
-                    customerAddressRepository.findByCustomerAndIsDefault(customer, true)
-                        .map(a -> String.join(", ",
-                            nullSafe(a.getAddress().getAddressLine1()),
-                            nullSafe(a.getAddress().getCity()),
-                            nullSafe(a.getAddress().getState()),
-                            nullSafe(a.getAddress().getPinCode())))
-                        .orElseThrow(() -> new ApiException(
-                            "No delivery address provided and no default address saved.", HttpStatus.BAD_REQUEST))
-                );
-            }
-        }
+        String resolvedLat = null, resolvedLng = null;
+        String resolvedAddress = null;
+        CustomerAddress addr = customerAddressRepository.findById(request.getDeliveryAddressId())
+                .orElseThrow(() -> new ApiException("Delivery address not found", HttpStatus.BAD_REQUEST));
+        if (!addr.getCustomer().getId().equals(userId))
+            throw new ApiException("Address does not belong to this customer", HttpStatus.FORBIDDEN);
+        resolvedAddress = String.join(", ",
+                nullSafe(addr.getAddress().getAddressLine1()),
+                nullSafe(addr.getAddress().getCity()),
+                nullSafe(addr.getAddress().getState()),
+                nullSafe(addr.getAddress().getPinCode()));
+        resolvedLat = addr.getAddress().getLatitude();
+        resolvedLng = addr.getAddress().getLongitude();
 
         // Build parent order
         LocalDateTime now = LocalDateTime.now();
@@ -62,14 +93,14 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         String uniqueSuffix = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         ParentOrder parentOrder = new ParentOrder();
         parentOrder.setCustomer(customer);
-        parentOrder.setDeliveryType(request.getDeliveryType().toUpperCase());
-        parentOrder.setDeliveryAddress(request.getDeliveryAddress());
+        parentOrder.setDeliveryAddress(resolvedAddress);
         parentOrder.setDeliveryInstruction(request.getDeliveryInstruction());
         parentOrder.setOrderNumber("PO-" + dateStr + "" + timeStr + "-" + uniqueSuffix);
         parentOrder.setStatus(OrderStatus.PAYMENT_PENDING);
         log.info("Creating order for user: " + parentOrder.getOrderNumber());
         parentOrder.setSubtotal(0.0);
         parentOrder.setTotalGst(0.0);
+        parentOrder.setDeliveryCharge(0.0);
         parentOrder.setTotalAmount(0.0);
         parentOrder.setPaymentMethod(request.getPaymentMethod());
         ParentOrder savedParent = parentOrderRepository.save(parentOrder);
@@ -115,8 +146,14 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
 
         double grandSubtotal = 0.0;
         double grandGst = 0.0;
+        double grandDeliveryCharge = 0.0;
         List<Order> subOrders = new ArrayList<>();
         int shopIndex = 1;
+
+        // Load platform config once for delivery rate
+        PlatformConfig platformConfig = platformConfigRepository.findAll().stream().findFirst().orElse(null);
+        double ratePerKm = platformConfig != null && platformConfig.getDeliveryChargeRatePerKm() != null
+                ? platformConfig.getDeliveryChargeRatePerKm() : 5.0;
 
         for (Map.Entry<Long, List<Integer>> entry : byShop.entrySet()) {
             Profile shop = resolvedProducts.get(entry.getValue().get(0)).getShop();
@@ -162,18 +199,32 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 orderItems.add(item);
             }
 
-            double subOrderTotal = Math.round((subTotal + subGst) * 100.0) / 100.0;
+            double subOrderDeliveryCharge = 0.0;
+            // Calculate delivery charge: 2 * distance * ratePerKm
+            // Free if subtotal >= shop's freeDeliveryAboveAmount
+            if (shop.getFreeDeliveryAboveAmount() == null || subTotal < shop.getFreeDeliveryAboveAmount()) {
+                if (shop.getAddress() != null) {
+                    double distance = calculateDistanceKm(
+                            shop.getAddress().getLatitude(), shop.getAddress().getLongitude(),
+                            resolvedLat, resolvedLng);
+                    subOrderDeliveryCharge = Math.round(2 * distance * ratePerKm * 100.0) / 100.0;
+                }
+            }
+
+            double subOrderTotal = Math.round((subTotal + subGst + subOrderDeliveryCharge) * 100.0) / 100.0;
 
             Order subOrder = new Order();
             subOrder.setParentOrder(savedParent);
             subOrder.setCustomer(customer);
             subOrder.setShop(shop);
             subOrder.setOrderNumber(savedParent.getOrderNumber() + "-S" + shopIndex++);
-            subOrder.setDeliveryType(request.getDeliveryType().toUpperCase());
-            subOrder.setDeliveryAddress(request.getDeliveryAddress());
+            subOrder.setDeliveryType(com.example.rapiffy.enums.DeliveryType.SELF);
+            subOrder.setDeliveryAddress(resolvedAddress);
+            subOrder.setDeliveryLatitude(resolvedLat);
+            subOrder.setDeliveryLongitude(resolvedLng);
             subOrder.setSubtotal(Math.round(subTotal * 100.0) / 100.0);
             subOrder.setTotalGst(Math.round(subGst * 100.0) / 100.0);
-            subOrder.setDeliveryCharge(0.0);
+            subOrder.setDeliveryCharge(subOrderDeliveryCharge);
             subOrder.setTotalAmount(subOrderTotal);
             subOrder.setStatus(OrderStatus.PAYMENT_PENDING);
             Order savedSubOrder = orderRepository.save(subOrder);
@@ -185,12 +236,14 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
 
             grandSubtotal += subTotal;
             grandGst += subGst;
+            grandDeliveryCharge += subOrderDeliveryCharge;
         }
 
         // Update parent totals
         savedParent.setSubtotal(Math.round(grandSubtotal * 100.0) / 100.0);
         savedParent.setTotalGst(Math.round(grandGst * 100.0) / 100.0);
-        savedParent.setTotalAmount(Math.round((grandSubtotal + grandGst) * 100.0) / 100.0);
+        savedParent.setDeliveryCharge(Math.round(grandDeliveryCharge * 100.0) / 100.0);
+        savedParent.setTotalAmount(Math.round((grandSubtotal + grandGst + grandDeliveryCharge) * 100.0) / 100.0);
         savedParent.setSubOrders(subOrders);
 
         // COD → directly PENDING so admin can see it, no payment needed
@@ -205,12 +258,6 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         }
 
         parentOrderRepository.save(savedParent);
-
-        // COD → clear cart immediately (no payment step follows)
-        if (request.getPaymentMethod() == com.example.rapiffy.enums.PaymentMethod.COD) {
-            try { cartService.clearCart(userId); } catch (Exception ignored) {}
-        }
-        // UPI/Online → cart cleared only after payment is verified (in verifyPayment)
 
         return toParentOrderResponse(savedParent);
     }
@@ -232,6 +279,129 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
             throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
 
         return toParentOrderResponse(parentOrder);
+    }
+
+    @Override
+    public List<OrderItemResponse> getSubOrderItems(Long userId, Long subOrderId) {
+        Order subOrder = orderRepository.findById(subOrderId)
+                .orElseThrow(() -> new ApiException("Sub-order not found", HttpStatus.NOT_FOUND));
+
+        if (!subOrder.getCustomer().getId().equals(userId))
+            throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
+
+        return subOrder.getItems().stream().map(item -> {
+            OrderItemResponse i = new OrderItemResponse();
+            i.setOrderItemId(item.getId());
+            i.setShopProductId(item.getShopProduct() != null ? item.getShopProduct().getId() : null);
+            i.setProductName(item.getProductName());
+            i.setBrand(item.getBrand());
+            i.setUnit(item.getUnit());
+            i.setUnitValue(item.getUnitValue());
+            i.setImageUrl(item.getImageUrl());
+            i.setMrp(item.getMrp());
+            i.setSellingPrice(item.getSellingPrice());
+            i.setQuantity(item.getQuantity());
+            i.setGstSlab(item.getGstSlab());
+            i.setGstAmount(item.getGstAmount());
+            i.setLineTotal(item.getLineTotal());
+            return i;
+        }).toList();
+    }
+
+    // ── CANCEL ORDER ITEMS ───────────────────────────────────────────────────
+
+    @Override
+    @Transactional
+    public CancelOrderItemResponse cancelOrderItems(Long userId, Long subOrderId, CancelOrderItemRequest request) {
+        Order subOrder = orderRepository.findById(subOrderId)
+                .orElseThrow(() -> new ApiException("Sub-order not found", HttpStatus.NOT_FOUND));
+
+        if (!subOrder.getCustomer().getId().equals(userId))
+            throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
+
+        if (subOrder.getStatus() != OrderStatus.PENDING)
+            throw new ApiException("Items can only be cancelled when order status is PENDING", HttpStatus.BAD_REQUEST);
+
+        if (cancellationRequestRepository.existsByOrderIdAndStatus(subOrderId, CancellationStatus.REQUESTED))
+            throw new ApiException("A cancellation request is already pending for this order", HttpStatus.BAD_REQUEST);
+
+        User customer = subOrder.getCustomer();
+        double totalRefund = 0.0;
+
+        CancellationRequest cancellationRequest = new CancellationRequest();
+        cancellationRequest.setOrder(subOrder);
+        cancellationRequest.setCustomer(customer);
+        cancellationRequest.setReason(request.getReason());
+        cancellationRequest.setStatus(CancellationStatus.REQUESTED);
+
+        List<CancellationItem> cancellationItems = new ArrayList<>();
+        for (CancelOrderItemRequest.CancelItemEntry entry : request.getItems()) {
+            OrderItem item = orderItemRepository.findById(entry.getOrderItemId())
+                    .orElseThrow(() -> new ApiException("Order item not found: " + entry.getOrderItemId(), HttpStatus.NOT_FOUND));
+
+            if (!item.getOrder().getId().equals(subOrderId))
+                throw new ApiException("Item " + entry.getOrderItemId() + " does not belong to this sub-order", HttpStatus.BAD_REQUEST);
+
+            if (entry.getQuantityToCancel() > item.getQuantity())
+                throw new ApiException("Cancel quantity exceeds ordered quantity for: " + item.getProductName(), HttpStatus.BAD_REQUEST);
+
+            double lineRefund = Math.round(item.getSellingPrice() * entry.getQuantityToCancel() * 100.0) / 100.0;
+            totalRefund += lineRefund;
+
+            CancellationItem ci = new CancellationItem();
+            ci.setCancellationRequest(cancellationRequest);
+            ci.setOrderItem(item);
+            ci.setProductName(item.getProductName());
+            ci.setImageUrl(item.getImageUrl());
+            ci.setQuantityToCancel(entry.getQuantityToCancel());
+            ci.setLineRefundAmount(lineRefund);
+            cancellationItems.add(ci);
+        }
+
+        cancellationRequest.setRefundAmount(Math.round(totalRefund * 100.0) / 100.0);
+        cancellationRequest.setItems(cancellationItems);
+        CancellationRequest saved = cancellationRequestRepository.save(cancellationRequest);
+
+        CancelOrderItemResponse response = new CancelOrderItemResponse();
+        response.setCancellationRequestId(saved.getId());
+        response.setSubOrderId(subOrder.getId());
+        response.setSubOrderNumber(subOrder.getOrderNumber());
+        response.setShopName(subOrder.getShop().getShopName());
+        response.setSubOrderStatus(subOrder.getStatus());
+        response.setCancellationStatus(CancellationStatus.REQUESTED);
+        response.setRefundAmount(saved.getRefundAmount());
+        response.setMessage("Your cancellation request has been submitted. You will be refunded once the shop approves it.");
+        return response;
+    }
+
+    // ── GET MY CANCELLATIONS ─────────────────────────────────────────────────
+
+    @Override
+    public List<CancellationRequestResponse> getMyCancellations(Long userId) {
+        return cancellationRequestRepository.findByCustomerIdOrderByCreatedAtDesc(userId)
+                .stream().map(cr -> {
+                    CancellationRequestResponse r = new CancellationRequestResponse();
+                    r.setCancellationRequestId(cr.getId());
+                    r.setSubOrderId(cr.getOrder().getId());
+                    r.setSubOrderNumber(cr.getOrder().getOrderNumber());
+                    r.setShopName(cr.getOrder().getShop().getShopName());
+                    r.setReason(cr.getReason());
+                    r.setAdminNote(cr.getAdminNote());
+                    r.setStatus(cr.getStatus());
+                    r.setRefundAmount(cr.getRefundAmount());
+                    r.setCreatedAt(cr.getCreatedAt());
+                    r.setUpdatedAt(cr.getUpdatedAt());
+                    r.setItems(cr.getItems().stream().map(ci -> {
+                        CancellationItemResponse item = new CancellationItemResponse();
+                        item.setOrderItemId(ci.getOrderItem() != null ? ci.getOrderItem().getId() : null);
+                        item.setProductName(ci.getProductName());
+                        item.setImageUrl(ci.getImageUrl());
+                        item.setQuantityToCancel(ci.getQuantityToCancel());
+                        item.setLineRefundAmount(ci.getLineRefundAmount());
+                        return item;
+                    }).toList());
+                    return r;
+                }).toList();
     }
 
     // ── HELPERS ──────────────────────────────────────────────────────────────
@@ -258,9 +428,8 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 .orElse(null));
         r.setSubtotal(po.getSubtotal());
         r.setTotalGst(po.getTotalGst());
-        r.setDeliveryCharge(0.0);
+        r.setDeliveryCharge(po.getDeliveryCharge());
         r.setTotalAmount(po.getTotalAmount());
-        r.setDeliveryType(po.getDeliveryType());
         r.setCreatedAt(po.getCreatedAt());
         return r;
     }
@@ -269,11 +438,11 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         ParentOrderResponse r = new ParentOrderResponse();
         r.setParentOrderId(po.getId());
         r.setOrderNumber(po.getOrderNumber());
-        r.setDeliveryType(po.getDeliveryType());
         r.setDeliveryAddress(po.getDeliveryAddress());
         r.setDeliveryInstruction(po.getDeliveryInstruction());
         r.setSubtotal(po.getSubtotal());
         r.setTotalGst(po.getTotalGst());
+        r.setDeliveryCharge(po.getDeliveryCharge());
         r.setTotalAmount(po.getTotalAmount());
         r.setStatus(po.getStatus());
         r.setCreatedAt(po.getCreatedAt());
@@ -308,6 +477,9 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                     nullSafe(shop.getAddress().getPinCode())));
         if (shop.getPhoneNumber() != null)
             section.setShopPhone(shop.getPhoneNumber().getPhoneNumber());
+        section.setShopGstNumber(shop.getGstNumber());
+        section.setShopPan(shop.getPan());
+        section.setShopState(shop.getAddress() != null ? shop.getAddress().getState() : null);
         section.setShopTotal(subOrder.getTotalAmount());
         section.setItems(subOrder.getItems().stream().map(item -> {
             OrderItemResponse i = new OrderItemResponse();
@@ -325,12 +497,36 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
             return i;
         }).toList());
 
+        // Platform fee from PaymentTransfer
+        com.example.rapiffy.model.payment.PaymentTransfer transfer =
+                paymentTransferRepository.findByOrderId(subOrder.getId()).orElse(null);
+        double platformFee = transfer != null ? transfer.getPlatformCommission() : 0.0;
+        double platformFeeGst = Math.round(platformFee * 0.18 * 100.0) / 100.0;
+        double platformFeeTotal = Math.round((platformFee + platformFeeGst) * 100.0) / 100.0;
+
+        // Place of supply = state from delivery address
+        String placeOfSupply = "";
+        if (subOrder.getDeliveryAddress() != null && !subOrder.getDeliveryAddress().isBlank()) {
+            String[] parts = subOrder.getDeliveryAddress().split(",");
+            if (parts.length >= 3) placeOfSupply = parts[parts.length - 2].trim();
+        }
+        if (placeOfSupply.isBlank() && shop.getAddress() != null)
+            placeOfSupply = nullSafe(shop.getAddress().getState());
+
         CustomerInvoiceResponse r = new CustomerInvoiceResponse();
         r.setOrderNumber(subOrder.getOrderNumber());
+        r.setInvoiceNumber(subOrder.getInvoiceId());
         r.setOrderDate(parentOrder.getCreatedAt());
+        r.setInvoiceDate(parentOrder.getCreatedAt());
         r.setCustomerPhone(parentOrder.getCustomer().getPhoneNumber());
         r.setDeliveryAddress(subOrder.getDeliveryAddress());
         r.setDeliveryType(subOrder.getDeliveryType());
+        r.setPlaceOfSupply(placeOfSupply);
+        r.setPlaceOfDelivery(placeOfSupply);
+        r.setPlatformFee(platformFee);
+        r.setPlatformFeeGst(platformFeeGst);
+        r.setPlatformFeeTotal(platformFeeTotal);
+        r.setTxnId(transfer != null ? transfer.getRazorpayTransferId() : null);
         r.setShops(List.of(section));
         r.setSubtotal(subOrder.getSubtotal());
         r.setTotalGst(subOrder.getTotalGst());
@@ -350,7 +546,9 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
         r.setShopName(order.getShop().getShopName());
         r.setSubtotal(order.getSubtotal());
         r.setTotalGst(order.getTotalGst());
+        r.setDeliveryCharge(order.getDeliveryCharge());
         r.setTotalAmount(order.getTotalAmount());
+        r.setDeliveryType(order.getDeliveryType());
         r.setStatus(order.getStatus());
         r.setItems(order.getItems().stream().map(item -> {
             OrderItemResponse i = new OrderItemResponse();

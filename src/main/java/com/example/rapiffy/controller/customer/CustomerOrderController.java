@@ -1,14 +1,19 @@
 package com.example.rapiffy.controller.customer;
 
+import com.example.rapiffy.dto.customer.CancelOrderItemRequest;
+import com.example.rapiffy.dto.customer.CancelOrderItemResponse;
 import com.example.rapiffy.dto.customer.CustomerInvoiceResponse;
 import com.example.rapiffy.dto.customer.CustomerOrderSummaryResponse;
 import com.example.rapiffy.dto.customer.ParentOrderResponse;
 import com.example.rapiffy.dto.customer.PlaceOrderRequest;
-import com.example.rapiffy.dto.invoice.InvoiceResponse;
+import com.example.rapiffy.dto.customer.cancellation.CancellationRequestResponse;
+import com.example.rapiffy.dto.order.OrderItemResponse;
 import com.example.rapiffy.exceptions.ApiException;
 import com.example.rapiffy.impl.customer.CustomerInvoicePdfService;
 import com.example.rapiffy.model.User;
 import com.example.rapiffy.repos.UserRepository;
+import com.example.rapiffy.dto.delivery.DeliveryLocationResponse;
+import com.example.rapiffy.services.delivery.DeliveryLocationService;
 import com.example.rapiffy.services.customer.CustomerOrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,6 +32,7 @@ import java.util.List;
 public class CustomerOrderController {
 
     private final CustomerOrderService customerOrderService;
+    private final DeliveryLocationService deliveryLocationService;
     private final UserRepository userRepository;
     private final CustomerInvoicePdfService customerInvoicePdfService;
 
@@ -63,6 +69,36 @@ public class CustomerOrderController {
     }
 
     @Operation(
+        summary = "Get my cancellation requests",
+        description = "Returns all cancellation requests raised by the logged-in customer, newest first. Shows status (REQUESTED/APPROVED/REJECTED) and items."
+    )
+    @GetMapping("/cancellations")
+    public ResponseEntity<List<CancellationRequestResponse>> getMyCancellations() {
+        return ResponseEntity.ok(customerOrderService.getMyCancellations(getCurrentUserId()));
+    }
+
+    @Operation(
+        summary = "Cancel specific items from a sub-order",
+        description = "Customer selects items to cancel before admin ships. Only allowed when status is PENDING. "
+            + "COD: just cancel. Wallet: refund to wallet. Online: Razorpay refund to original source."
+    )
+    @PostMapping("/suborders/{subOrderId}/cancel-items")
+    public ResponseEntity<CancelOrderItemResponse> cancelOrderItems(
+            @PathVariable Long subOrderId,
+            @Valid @RequestBody CancelOrderItemRequest request) {
+        return ResponseEntity.ok(customerOrderService.cancelOrderItems(getCurrentUserId(), subOrderId, request));
+    }
+
+    @Operation(
+        summary = "Get items for a sub-order (for return flow)",
+        description = "Returns all ordered items for a specific shop's sub-order. Use orderItemId and quantity from this response when submitting a return request."
+    )
+    @GetMapping("/suborders/{subOrderId}/items")
+    public ResponseEntity<List<OrderItemResponse>> getSubOrderItems(@PathVariable Long subOrderId) {
+        return ResponseEntity.ok(customerOrderService.getSubOrderItems(getCurrentUserId(), subOrderId));
+    }
+
+    @Operation(
         summary = "Get sub-order invoice as JSON",
         description = "Returns invoice for a single shop's sub-order. Available once the shop confirms the order."
     )
@@ -85,6 +121,15 @@ public class CustomerOrderController {
         headers.setContentType(MediaType.APPLICATION_PDF);
         headers.setContentDispositionFormData("attachment", invoice.getOrderNumber() + ".pdf");
         return new ResponseEntity<>(pdf, headers, HttpStatus.OK);
+    }
+
+    @Operation(
+        summary = "Track delivery person location",
+        description = "Returns the latest live location of the delivery person for a given sub-order. Poll every 10 seconds. Only available when order is OUT_FOR_DELIVERY."
+    )
+    @GetMapping("/suborders/{subOrderId}/delivery-location")
+    public ResponseEntity<DeliveryLocationResponse> getDeliveryLocation(@PathVariable Long subOrderId) {
+        return ResponseEntity.ok(deliveryLocationService.getDeliveryLocation(getCurrentUserId(), subOrderId));
     }
 
     private Long getCurrentUserId() {

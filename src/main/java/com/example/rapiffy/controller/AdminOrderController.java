@@ -1,5 +1,8 @@
 package com.example.rapiffy.controller;
 
+import com.example.rapiffy.dto.delivery.AssignDeliveryRequest;
+import com.example.rapiffy.dto.delivery.AssignDeliveryResponse;
+import com.example.rapiffy.dto.admin.DeliveryPersonResponse;
 import com.example.rapiffy.dto.invoice.InvoiceResponse;
 import com.example.rapiffy.dto.order.OrderDetailResponse;
 import com.example.rapiffy.dto.order.OrderSummaryResponse;
@@ -30,7 +33,7 @@ public interface AdminOrderController {
     @GetMapping("/statuses")
     ResponseEntity<List<OrderStatus>> getOrderStatuses();
 
-    @Operation(summary = "Update order status", description = "Single API to update order status. Valid transitions: PENDING→CONFIRMED→READY→OUT_FOR_DELIVERY→DELIVERED")
+    @Operation(summary = "Update order status", description = "Single API to update order status. Valid transitions: PENDING→CONFIRMED→DELIVERY_ACCEPTED→READY→COMING_TO_PICK→OUT_FOR_DELIVERY→DELIVERED. READY also allowed from CONFIRMED directly if delivery boy already accepted.")
     @PutMapping("/{orderId}/status")
     ResponseEntity<OrderDetailResponse> updateOrderStatus(@PathVariable Long orderId, @RequestBody UpdateOrderStatusRequest request);
 
@@ -41,4 +44,12 @@ public interface AdminOrderController {
     @Operation(summary = "Download invoice as PDF")
     @GetMapping(value = "/{orderId}/invoice/pdf", produces = "application/pdf")
     ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable Long orderId);
+
+    @Operation(summary = "Get delivery persons linked to this shop")
+    @GetMapping("/delivery-persons")
+    ResponseEntity<List<DeliveryPersonResponse>> getDeliveryPersons();
+
+    @Operation(summary = "Assign delivery person to an order", description = "Assigns a delivery person when order is CONFIRMED or READY. Does not change order status — Admin must separately move to OUT_FOR_DELIVERY.")
+    @PostMapping("/{orderId}/assign-delivery")
+    ResponseEntity<AssignDeliveryResponse> assignDeliveryPerson(@PathVariable Long orderId, @RequestBody AssignDeliveryRequest request);
 }

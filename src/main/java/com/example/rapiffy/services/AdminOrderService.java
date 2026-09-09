@@ -1,5 +1,6 @@
 package com.example.rapiffy.services;
 
+import com.example.rapiffy.dto.admin.DeliveryPersonResponse;
 import com.example.rapiffy.dto.invoice.InvoiceResponse;
 import com.example.rapiffy.dto.order.OrderDetailResponse;
 import com.example.rapiffy.dto.order.OrderSummaryResponse;
@@ -11,6 +12,8 @@ import java.util.List;
 public interface AdminOrderService {
 
     List<OrderSummaryResponse> getOrders(Long userId, OrderStatus status);
+
+    List<DeliveryPersonResponse> getDeliveryPersons(Long userId);
 
     OrderDetailResponse getOrderDetail(Long userId, Long orderId);
 

@@ -1,5 +1,6 @@
 package com.example.rapiffy.dto.order;
 
+import com.example.rapiffy.enums.DeliveryType;
 import com.example.rapiffy.enums.OrderStatus;
 import lombok.Data;
 
@@ -32,7 +33,7 @@ public class OrderDetailResponse {
     private Double totalAmount;
 
     // Delivery
-    private String deliveryType;
+    private DeliveryType deliveryType;
     private String deliveryAddress;
 
     // Status

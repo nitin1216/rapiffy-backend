@@ -6,5 +6,6 @@ package com.example.rapiffy.enums;
 public enum CancelledBy {
     CUSTOMER,     // Customer cancelled before admin confirmed
     ADMIN,        // Shopkeeper rejected the order
-    SYSTEM        // Auto-cancelled (e.g. payment timeout, fraud detection)
+    SYSTEM,       // Auto-cancelled (e.g. payment timeout, fraud detection)
+    RETURN        // Refund triggered by an approved return request
 }

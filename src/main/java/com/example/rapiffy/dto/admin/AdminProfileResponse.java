@@ -42,6 +42,7 @@ public class AdminProfileResponse {
     private Double servingRangeInKm;
     private String gstNumber;
     private Integer noOfDeliveryPersons;
+    private Double freeDeliveryAboveAmount;
     private boolean editUnlistedProducts; // frontend uses this to show/hide the "Add Unlisted" button
 
     // Bank (masked)

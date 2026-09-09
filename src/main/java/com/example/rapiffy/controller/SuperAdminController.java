@@ -1,7 +1,9 @@
 package com.example.rapiffy.controller;
 
 import com.example.rapiffy.dto.admin.AdminProfileResponse;
+import com.example.rapiffy.dto.admin.DeliveryPersonResponse;
 import com.example.rapiffy.dto.superadmin.*;
+import com.example.rapiffy.dto.delivery.OnboardDeliveryPersonRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
@@ -121,6 +123,22 @@ public interface SuperAdminController {
     )
     @DeleteMapping("/remove-admin/{adminUserId}")
     ResponseEntity<SuperAdminActionResponse> removeAdmin(@PathVariable Long adminUserId);
+
+    // ── DELIVERY PERSON MANAGEMENT ────────────────────────────────────────────
+
+    @Operation(summary = "Onboard a delivery person for a specific shop (by shopProfileId)")
+    @PostMapping("/shop/{shopProfileId}/delivery-person")
+    ResponseEntity<DeliveryPersonResponse> onboardDeliveryPerson(
+            @PathVariable Long shopProfileId,
+            @RequestBody OnboardDeliveryPersonRequest request);
+
+    @Operation(summary = "Get all delivery persons for a specific shop")
+    @GetMapping("/shop/{shopProfileId}/delivery-persons")
+    ResponseEntity<List<DeliveryPersonResponse>> getDeliveryPersonsByShop(@PathVariable Long shopProfileId);
+
+    @Operation(summary = "Deactivate a delivery person")
+    @PutMapping("/delivery-person/{deliveryPersonId}/deactivate")
+    ResponseEntity<DeliveryPersonResponse> deactivateDeliveryPerson(@PathVariable Long deliveryPersonId);
 
     // ── RAZORPAY LINKING ─────────────────────────────────────────────────────
 

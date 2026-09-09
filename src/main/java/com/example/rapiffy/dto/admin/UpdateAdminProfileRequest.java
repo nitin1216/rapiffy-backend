@@ -44,4 +44,5 @@ public class UpdateAdminProfileRequest {
     private Double servingRangeInKm;
     private String gstNumber;
     private Integer noOfDeliveryPersons;
+    private Double freeDeliveryAboveAmount;
 }

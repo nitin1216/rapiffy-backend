@@ -132,6 +132,14 @@ public class PlatformServiceImpl implements PlatformService {
         return new PlatformActionResponse("Default commission rate updated to " + request.getDefaultCommissionRate() + "%");
     }
 
+    @Override
+    public PlatformActionResponse updateDeliveryChargeRate(Double ratePerKm) {
+        PlatformConfig config = getOrCreateConfig();
+        config.setDeliveryChargeRatePerKm(ratePerKm);
+        platformConfigRepository.save(config);
+        return new PlatformActionResponse("Delivery charge rate updated to ₹" + ratePerKm + " per km");
+    }
+
     // ── HELPER ───────────────────────────────────────────────────────────────
 
     private PlatformConfig getOrCreateConfig() {

@@ -46,6 +46,8 @@ public class SecurityConfig {
                 .requestMatchers("/v1/customer/wishlist/**").authenticated()
                 .requestMatchers("/v1/customer/profile/**").authenticated()
                 .requestMatchers("/v1/customer/payment/**").authenticated()
+                .requestMatchers("/v1/customer/returns/**").authenticated()
+                .requestMatchers("/v1/customer/wallet/**").authenticated()
                 // Open: Swagger UI
                 .requestMatchers(
                     "/swagger-ui.html",
@@ -60,6 +62,8 @@ public class SecurityConfig {
                 .requestMatchers("/v1/platform/**").hasRole("PLATFORM")
                 // Admin (shopkeeper) only
                 .requestMatchers("/v1/admin/**").hasRole("ADMIN")
+                // Delivery person only
+                .requestMatchers("/v1/delivery/**").hasRole("DELIVERY")
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )
